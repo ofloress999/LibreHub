@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="../css/dashboard.css">
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="logo">BIBLIOTECA</h2>
+                <div class="menu-toggle" id="menu-toggle">☰</div>
+            </div>
+            <nav>
+                <a href="dashboard.html"><p>Dashboard</p></a>
+                <a href="books.html"><p>Livros</p></a>
+                <a href="grupos.html"><p>Grupos</p></a>
+                <a href="perfil"><p>Perfil</p></a>
+                <a href="admin.html"><p>Admin</p></a>
+            </nav>
+        </aside>
+
+        <!-- Main -->
+        <div class="main">
+            <!-- Header -->
+            <header class="header">
+                <h1>Dashboard</h1>
+                <div class="header-right">
+                    <div class="theme-toggle" id="theme-toggle">🌙</div>
+                    <div class="profile">
+                        <img src="../img/user.png" id="profileBtn">
+                        <div class="dropdown" id="dropdown">
+                            <a href="#">Perfil</a>
+                            <a href="#">Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Cards -->
+            <section class="cards">
+                <!-- ID adicionado para total de livros (opcional, adicionei para ficar mais completo) -->
+                <div class="card">
+                    <h3>Total de Livros</h3>
+                    <span id="num-total-livros">0</span>
+                </div>
+                <!-- ID adicionado para disponíveis -->
+                <div class="card">
+                    <h3>Livros Disponíveis</h3>
+                    <p id="dash-disponiveis">0</p>
+                </div>
+                <!-- ID adicionado para alugados -->
+                <div class="card">
+                    <h3>Livros Alugados</h3>
+                    <p id="dash-alugados">0</p>
+                </div>
+                <div class="card">
+                    <h3>Usuários</h3>
+                    <p>18</p> <!-- Valor fixo por enquanto -->
+                </div>
+            </section>
+
+            <!-- Últimos Livros -->
+            <!-- No seu dashboard.html ou index.html -->
+            <section class="recent">
+                <h2>Livros Recentes</h2>
+                <div class="books" id="recent-books-container">
+                    <!-- O JS vai injetar os cards aqui -->
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="../js/dashboard.js"></script>
+    <script type="module" src="../js/dashboard.js"></script>
+    
+    <script>
+        // js/dashboard.js (ou dentro da tag script da dashboard)
+    import { db } from '../js/firebase.js'; 
+    import { collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // Carregar dados assim que a página abrir
+    window.onload = async () => {
+    carregarResumoLivros();
+    carregarUltimosLivros();
+};
+    </script>
+
+
+</body>
+</html>

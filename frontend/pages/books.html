@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Livros</title>
+    <link rel="stylesheet" href="../css/dashboard.css">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="logo">BIBLIOTECA</h2>
+                <div class="menu-toggle" id="menu-toggle">☰</div>
+            </div>
+
+            <nav>
+                <a href="dashboard.html"><p>Dashboard</p></a>
+                <a href="books.html"><p>Livros</p></a>
+                <a href="grupos.html"><p>Grupos</p></a>
+                <a href="perfil"><p>Perfil</p></a>
+                <a href="admin.html"><p>Admin</p></a>
+            </nav>
+        </aside>
+
+        <!-- Main -->
+        <div class="main">
+
+            <!-- Header -->
+            <header class="header">
+                <h1>Gerenciamento de Livros</h1>
+                <div class="header-right">
+                    <div class="theme-toggle" id="theme-toggle">🌙</div>
+                    <div class="profile">
+                        <img src="../img/user.png" id="profileBtn">
+                        <div class="dropdown" id="dropdown">
+                            <a href="#">Perfil</a>
+                            <a href="#">Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Conteúdo -->
+            <section class="books-page">
+                <!-- Topo Dinâmico -->
+                <div class="books-top">
+                    <h2 id="page-title">Biblioteca de Livros</h2>
+                    <!-- Botão que só o Admin verá -->
+                    <button id="btn-admin-add" class="btn-add" onclick="window.location.href='cadastrarLivro.html'" style="display: none;">
+                        + Cadastrar Novo Livro
+                    </button>
+                </div>
+
+                <!-- Filtro (Largura menor como você pediu antes) -->
+                <div class="books-filters">
+                    <input type="text" id="inputBusca" placeholder="Pesquisar por título ou autor..." style="width: 300px;">
+                    <select id="filtroStatus">
+                        <option value="Todos">Todos os Status</option>
+                        <option value="Disponível">Disponível</option>
+                        <option value="Alugado">Alugado</option>
+                    </select>
+                </div>
+
+                <!-- Container para os CARDS (Visão do Usuário) -->
+                <div id="container-cards-livros" class="books-grid"></div>
+
+                <!-- Container para a TABELA (Visão do Admin - Oculta por padrão) -->
+                <div id="area-admin-tabela" style="display: none;" class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Capa</th>
+                                <th>Título</th>
+                                <th>Autor</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaLivrosCorpo"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- Modal de Empréstimo -->
+    <div id="modalEmprestimo" class="modal-overlay">
+        <div class="modal-content" style="width: 500px;">
+            <h2>Registrar Empréstimo</h2>
+            <p id="nomeLivroModal" style="font-weight: bold; color: #2563eb; margin-bottom: 15px;"></p>
+            
+            <form id="formEmprestimo">
+                <input type="hidden" id="idLivroModal">
+                
+                <div class="form-group">
+                    <label>Pesquisar Usuário (Digite o CPF):</label>
+                    <input type="text" id="inputUsuarioBusca" list="listaUsuarios" placeholder="000.000.000-00" required autocomplete="off">
+                    <datalist id="listaUsuarios"></datalist>
+                </div>
+
+                <!-- Campos de detalhes do usuário (Apenas leitura) -->
+                <div id="detalhesUsuario" style="background: var(--bg-main); padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; display: none;">
+                    <p><strong>Nome:</strong> <span id="info-nome"></span></p>
+                    <p><strong>E-mail:</strong> <span id="info-email"></span></p>
+                    <p><strong>Matrícula:</strong> <span id="info-matricula"></span></p>
+                    <p><strong>Telefone:</strong> <span id="info-telefone"></span></p>
+                    <p><strong>Endereço:</strong> <span id="info-endereco"></span></p>
+                </div>
+
+                <div class="modal-buttons">
+                    <button type="button" class="btn delete" onclick="fecharModal()">Cancelar</button>
+                    <button type="submit" class="btn-save" id="btnConfirmarEmprestimo" disabled>Confirmar Aluguel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+   <!-- Modal de Detalhes do Livro (Para o Usuário) -->
+    <div id="modalDetalhesLivro" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="width: 600px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; gap: 20px; align-items: start;">
+                <img id="detalheCapa" src="" alt="Capa" style="width: 150px; height: 220px; object-fit: cover; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+                <div style="flex: 1;">
+                    <h2 id="detalheTitulo" style="margin-bottom: 5px; color: var(--text-color);"></h2>
+                    <p style="color: #666; margin-bottom: 10px;">Autor: <span id="detalheAutor" style="font-weight: bold;"></span></p>
+                    <div id="detalheStatus" class="status-livre" style="display: inline-block; padding: 5px 10px; border-radius: 4px; font-size: 12px;"></div>
+                </div>
+            </div>
+
+            <div style="margin-top: 25px; border-top: 1px solid #ddd; padding-top: 15px;">
+                <h3 style="color: var(--text-color);">Sinopse</h3>
+                <p id="detalheSinopse" style="line-height: 1.6; color: var(--text-color); margin-top: 10px; text-align: justify;"></p>
+            </div>
+
+            <div class="modal-buttons" style="margin-top: 30px; display: flex; justify-content:空间-between; gap: 10px;">
+                <button type="button" class="btn delete" onclick="fecharModalDetalhes()" style="background: #666;">Fechar</button>
+                <a id="btnBaixarPDF" href="#" target="_blank" class="btn-save" style="text-decoration: none; display: flex; align-items: center; justify-content: center; flex: 1;">
+                    📥 Baixar PDF para Ler
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/li"></script>
+    <script src="../js/dashboard.js"></script>
+</body>
+
+</html>

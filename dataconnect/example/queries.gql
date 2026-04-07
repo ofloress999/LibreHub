@@ -1,0 +1,66 @@
+query ListAllResources @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public as it retrieves general resource information.") {
+  resources {
+    id
+    title
+    resourceType
+    author
+    url
+    description
+    createdAt
+    user {
+      id
+      displayName
+    }
+    categories_via_ResourceCategory {
+      id
+      name
+    }
+  }
+}
+
+query GetMyStudyPlans @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users as it retrieves only their study plans.") {
+  studyPlans(where: {userId: {eq_expr: "auth.uid"}}) {
+    id
+    name
+    description
+    startDate
+    endDate
+    status
+    createdAt
+    user {
+      displayName
+    }
+    resources_via_StudyPlanResource {
+      id
+      title
+      resourceType
+      notes_on_resource {
+        id
+        content
+        isHighlight
+      }
+    }
+  }
+}
+
+mutation CreateNewNote($resourceId: UUID!, $content: String!, $isHighlight: Boolean) @auth(level: USER, insecureReason: "This operation allows logged-in users to create notes associated with resources.") {
+  note_insert(data: {
+    resourceId: $resourceId,
+    content: $content,
+    isHighlight: $isHighlight,
+    userId_expr: "auth.uid",
+    createdAt_expr: "request.time"
+  }) {
+    id
+  }
+}
+
+mutation UpdateResourceStatus($resourceId: UUID!, $status: String!) @auth(level: USER, insecureReason: "This operation allows logged-in users to update the status of resources they own.") {
+  resource_update(
+    key: {id: $resourceId},
+    data: {status: $status},
+    where: {userId: {eq_expr: "auth.uid"}}
+  ) {
+    id
+  }
+}

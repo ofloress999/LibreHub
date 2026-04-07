@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grupos - Biblioteca</title>
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/grupos.css"> <!-- Criaremos este abaixo -->
+</head>
+<body>
+
+    <div class="container">
+        <!-- Sidebar Replicada -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="logo">BIBLIOTECA</h2>
+                <div class="menu-toggle" id="menu-toggle">☰</div>
+            </div>
+            <nav>
+                <a href="dashboard.html"><p>Dashboard</p></a>
+                <a href="books.html"><p>Livros</p></a>
+                <a href="grupos.html" class="active"><p>Grupos</p></a>
+                <a href="perfil.html"><p>Perfil</p></a>
+                <a href="admin.html"><p>Admin</p></a>
+            </nav>
+        </aside>
+
+        <!-- Main -->
+        <div class="main">
+            <!-- Header Replicado -->
+            <header class="header">
+                <h1>Grupos de Leitura</h1>
+                <div class="header-right">
+                    <div class="theme-toggle" id="theme-toggle">🌙</div>
+                    <div class="profile">
+                        <img src="../img/user.png" id="profileBtn">
+                    </div>
+                </div>
+            </header>
+
+            <!-- Sistema de Abas -->
+            <section class="group-content">
+                <div class="tab-menu">
+                    <button class="tab-btn active" data-tab="encontrar">Encontrar Reuniões</button>
+                    <button class="tab-btn" data-tab="agendar">Agendar Reunião</button>
+                </div>
+
+                <hr>
+
+            <!-- Aba: Encontrar -->
+            <div id="encontrar" class="tab-pane active">
+                <div class="filter-section">
+                    <input type="text" id="filtro-reuniao" placeholder="Filtrar por livro...">
+                </div>
+                
+                <div class="meeting-grid" id="lista-reunioes">
+                    <!-- Cards com capas aparecerão aqui -->
+                </div>
+            </div>
+
+            <!-- Modal de Detalhes -->
+            <div id="modal-detalhes" class="modal">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <div id="conteudo-modal">
+                        <!-- Preenchido pelo JS -->
+                    </div>
+                </div>
+            </div>
+
+                <!-- Aba: Agendar -->
+                <div id="agendar" class="tab-pane">
+                    <div class="form-container">
+                        <h3>Agendar Novo Círculo de Leitura</h3>
+                        
+                        <label>Livro do Debate:</label>
+                        <input type="text" id="input-livro" list="sugestoes-livros" placeholder="Digite o título do livro...">
+                        <datalist id="sugestoes-livros"></datalist>
+
+                        <label>Data e Hora:</label>
+                        <input type="datetime-local" id="data-reuniao">
+
+                        <label>Descrição:</label>
+                        <textarea id="desc-reuniao" rows="4" placeholder="O que será discutido?"></textarea>
+
+                        <button id="btnCriarReuniao">Gerar Link do Meet e Agendar</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Importante: type="module" para usar imports do Firebase -->
+    <script type="module" src="../js/grupos.js"></script>
+</body>
+</html>

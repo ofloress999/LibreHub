@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Biblioteca</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="css/style.css">
+
+
+</head>
+
+<body>
+
+    <!-- ... resto do seu head ... -->
+
+<div class="container-index">
+    <div class="left">
+        <div class="first-left">
+            <h1>Biblioteca</h1>
+            <p>Gerencie seus livros de forma simples</p>
+            <button id="btnCadastrar">Cadastrar</button>
+        </div>
+
+        <div class="second-left">
+            <h1>Cadastro</h1>
+            <input type="text" id="cad-nome" placeholder="Seu Nome Completo">
+            <input type="email" id="cad-email" placeholder="Email">
+            <input type="password" id="cad-senha" placeholder="Senha">
+            <button id="btnCadastroTwo">Cadastrar Agora</button>
+        </div>
+    </div>
+
+    <div class="right">
+        <div class="first-right">
+            <h1>Login</h1>
+            <!-- IDs ÚNICOS PARA O LOGIN -->
+            <input type="email" id="log-email" placeholder="Email">
+            <input type="password" id="log-senha" placeholder="Senha">
+            <button id="btnEntrar">Entrar</button>
+        </div>
+
+        <div class="second-right">
+            <h1>Já tem conta?</h1>
+            <p>Faça login para continuar</p>
+            <button id="btnLogin">Login</button>
+        </div>
+    </div>
+</div>
+
+<!-- Chamada do script como MÓDULO -->
+<script src="js/script.js"></script>
+
+<script type="module" src="js/auth.js"></script>
+
+
+</body>
+</html>
