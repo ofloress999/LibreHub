@@ -73,3 +73,37 @@ switchToRegister?.addEventListener('click', ativarCadastro);
 
 btnLogin?.addEventListener('click', ativarLogin);
 switchToLogin?.addEventListener('click', ativarLogin);
+
+
+
+///------------------------------ V1
+// Selecionando todos os possíveis gatilhos
+const gatilhosCadastro = [
+    document.getElementById('btnCadastrar'),
+    document.getElementById('switchToRegister')
+];
+
+const gatilhosLogin = [
+    document.getElementById('btnLogin'),
+    document.getElementById('switchToLogin')
+];
+
+// Função para aplicar os eventos
+const adicionarEventoAlternar = (elementos, acao) => {
+    elementos.forEach(el => {
+        if (el) {
+            // 'click' funciona na maioria, mas garantimos que o elemento responda
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (acao === 'cadastrar') {
+                    container.classList.add('active');
+                } else {
+                    container.classList.remove('active');
+                }
+            });
+        }
+    });
+};
+
+adicionarEventoAlternar(gatilhosCadastro, 'cadastrar');
+adicionarEventoAlternar(gatilhosLogin, 'login');

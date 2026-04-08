@@ -256,46 +256,55 @@ transform:scale(1.05);
     font-weight: bold;
     text-decoration: underline;
 }
+}
 
-/* Responsividade Mobile */
 @media (max-width: 768px) {
     .toggle-mobile {
-        display: block; /* Aparece no Mobile */
+        display: block;
+        padding: 10px; /* Aumenta a área de toque */
+        color: inherit;
+        text-align: center;
+        width: 100%;
     }
 
-    /* Fazemos os dois lados ocuparem 100% da largura */
+    /* Reset de posições para Mobile */
     .left, .right {
         width: 100% !important;
         left: 0 !important;
-        transition: 0.6s ease-in-out;
+        position: absolute;
+        top: 0;
+        height: 100%;
+        transition: transform 0.6s ease-in-out, opacity 0.3s;
     }
 
-    /* No Mobile, as telas secundárias de "Boas vindas" do Desktop são inúteis */
+    /* ESTADO INICIAL: LOGIN VISÍVEL */
+    .left {
+        transform: translateX(-100%);
+        opacity: 0;
+        z-index: 1;
+        pointer-events: none; /* Desativa cliques enquanto escondido */
+    }
+    .right {
+        transform: translateX(0);
+        opacity: 1;
+        z-index: 2;
+        pointer-events: auto;
+    }
+
+    /* ESTADO ATIVO: CADASTRO VISÍVEL */
+    .container-index.active .left {
+        transform: translateX(0);
+        opacity: 1;
+        z-index: 10;
+        pointer-events: auto;
+    }
+    .container-index.active .right {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /* Remove as telas de boas-vindas do desktop que ficam por cima */
     .first-left, .second-right {
         display: none !important;
     }
-
-    /* ESTADO INICIAL (LOGIN) */
-    .left {
-        transform: translateX(-100%); /* Esconde o lado preto (Cadastro) */
-        z-index: 1;
-    }
-    .right {
-        background: white;
-        color: black;
-        z-index: 2;
-    }
-
-    /* ESTADO ATIVO (CADASTRO) */
-    .container-index.active .left {
-        transform: translateX(0); /* Traz o lado preto (Cadastro) para frente */
-        z-index: 3;
-    }
-    
-    /* Ajuste de inputs no mobile para não estourarem */
-    input {
-        width: 85% !important;
-    }
 }
-}
-
