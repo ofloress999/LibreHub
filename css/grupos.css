@@ -18,8 +18,15 @@
     border-bottom: 2px solid #2c3e50;
 }
 
-.tab-pane { display: none; }
-.tab-pane.active { display: block; }
+/* Esconde todos os painéis por padrão */
+.tab-pane {
+    display: none !important; 
+}
+
+/* Mostra apenas o painel que tiver a classe .active */
+.tab-pane.active {
+    display: block !important;
+}
 
 .form-container {
     max-width: 500px;
@@ -223,4 +230,51 @@
 .item-busca-custom {
     display: flex;
     align-items: center;
+}
+
+.modal {
+    display: none; /* Escondido por padrão */
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5); /* Fundo escuro */
+}
+
+.modal-content {
+    background-color: #fff;
+    margin: 10% auto;
+    padding: 20px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+}
+
+.close-modal {
+    position: absolute;
+    right: 15px;
+    top: 10px;
+    font-size: 28px;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.close-modal:hover {
+    color: #000;
+}
+
+#encontrar {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+
+#agendar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 50px;
 }

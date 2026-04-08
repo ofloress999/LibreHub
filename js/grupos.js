@@ -1,203 +1,254 @@
 import { db } from './firebase.js';
-import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// --- CONFIGURAÇÃO GOOGLE API ---
+const CLIENT_ID = "1006307822713-nkatf83ga031gqd9557t834ua8ijbou7.apps.googleusercontent.com"; // SUBSTITUA PELO SEU ID
+const SCOPES = "https://www.googleapis.com/auth/calendar.events";
+let tokenClient;
+
+// --- VARIÁVEIS DE ESTADO ---
 let todasAsReunioes = [];
-let todosOsLivrosDados = []; 
-let nomesDosLivros = [];    
+let todosOsLivrosDados = [];
+
 const usuarioAtual = localStorage.getItem('usuarioLogado') || "Usuário Anônimo";
-const usuarioCargo = localStorage.getItem('usuarioCargo'); // Pega o cargo do admin
+const usuarioCargo = localStorage.getItem('userRole');
 
-// --- 1. LÓGICA DAS ABAS ---
-const tabs = document.querySelectorAll('.tab-btn');
-const panes = document.querySelectorAll('.tab-pane');
-
-tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-        const target = tab.dataset.tab;
-        tabs.forEach(t => t.classList.remove('active'));
-        panes.forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById(target).classList.add('active');
+/**
+ * 1. INICIALIZAÇÃO GOOGLE E CARREGAMENTO
+ */
+function initGoogleAuth() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: async (response) => {
+            if (response.error !== undefined) throw response;
+            await criarReuniaoComLinkReal(response.access_token);
+        },
     });
+}
+
+async function carregarDados() {
+    try {
+        const snapLivros = await getDocs(collection(db, "livros"));
+        todosOsLivrosDados = [];
+        snapLivros.forEach(d => {
+            const data = d.data();
+            todosOsLivrosDados.push({ titulo: data.titulo || data.nome, capa: data.capa });
+        });
+
+        inicializarBuscaVisual();
+
+        const q = query(collection(db, "reunioes"), orderBy("timestamp", "asc"));
+        const snapReunioes = await getDocs(q);
+        todasAsReunioes = snapReunioes.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        renderizarReunioes(todasAsReunioes);
+    } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+    }
+}
+
+/**
+ * 2. CONTROLE DO MODAL
+ */
+window.abrirDetalhes = (id) => {
+    const reuniao = todasAsReunioes.find(r => r.id === id);
+    if (!reuniao) return;
+
+    const modal = document.getElementById("modal-detalhes");
+    const conteudo = document.getElementById("conteudo-modal");
+
+    if (modal && conteudo) {
+        conteudo.innerHTML = `
+            <h2 style="color: #333; margin-top:0;">${reuniao.livro}</h2>
+            <p style="font-size:0.9rem; color:#666;">Organizado por: ${reuniao.criadoPor}</p>
+            <hr style="opacity:0.2">
+            <p><strong>Descrição:</strong><br>${reuniao.descricao || "Sem pauta definida."}</p>
+            <br>
+            <a href="${reuniao.link}" target="_blank" style="display:block; text-align:center; background:#28a745; color:white; padding:12px; text-decoration:none; border-radius:5px; font-weight:bold;">
+               Entrar no Google Meet
+            </a>
+            <button id="btn-fechar-modal" style="width:100%; margin-top:10px; padding:10px; background:#eee; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
+               Fechar
+            </button>
+        `;
+        modal.style.display = "block";
+    }
+};
+
+document.addEventListener("click", (e) => {
+    const modal = document.getElementById("modal-detalhes");
+    if (!modal) return;
+    if (e.target.classList.contains("close-modal") || e.target.id === "btn-fechar-modal" || e.target === modal) {
+        modal.style.display = "none";
+    }
 });
 
-// --- 2. BUSCA DE CAPA E RENDERIZAÇÃO ---
-async function buscarCapaLivro(titulo) {
-    const q = query(collection(db, "livros"), where("titulo", "==", titulo));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-        return snap.docs[0].data().capa || "../img/default-book.png";
+/**
+ * 3. AGENDAR REUNIÃO (INTEGRAÇÃO GOOGLE CALENDAR)
+ */
+document.getElementById("btnCriarReuniao")?.addEventListener("click", () => {
+    const livro = document.getElementById("input-livro").value;
+    const data = document.getElementById("data-reuniao").value;
+
+    if (!livro || !data) return alert("Preencha livro e data!");
+
+    // Inicia fluxo de permissão do Google
+    tokenClient.requestAccessToken();
+});
+
+async function criarReuniaoComLinkReal(accessToken) {
+    const livro = document.getElementById("input-livro").value;
+    const data = document.getElementById("data-reuniao").value;
+    const desc = document.getElementById("desc-reuniao").value;
+
+    // Garante que a data está no formato correto para o Google
+    const dataInicio = new Date(data);
+    const dataFim = new Date(dataInicio.getTime() + (60 * 60 * 1000)); // +1 hora
+
+    const event = {
+        'summary': `Debate LibreHub: ${livro}`,
+        'description': desc,
+        'start': { 'dateTime': dataInicio.toISOString(), 'timeZone': 'America/Sao_Paulo' },
+        'end': { 'dateTime': dataFim.toISOString(), 'timeZone': 'America/Sao_Paulo' },
+        'conferenceData': {
+            'createRequest': {
+                'requestId': "librehub_" + Date.now(), // ID único baseado no timestamp
+                'conferenceSolutionKey': { 'type': 'hangoutsMeet' } // Alterado de eventHangout para hangoutsMeet
+            }
+        }
+    };
+
+    try {
+        // O parâmetro conferenceDataVersion=1 é CRUCIAL para gerar o link
+        const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(event)
+        });
+
+        const result = await response.json();
+
+        // Se o Google retornar erro, ele aparecerá no console agora
+        if (result.error) {
+            console.error("Erro detalhado do Google:", result.error);
+            alert("Erro do Google: " + result.error.message);
+            return;
+        }
+
+        // O link pode vir em hangoutLink ou dentro de conferenceData
+        const linkMeetReal = result.hangoutLink || (result.conferenceData?.entryPoints?.[0]?.uri);
+
+        if (linkMeetReal) {
+            await addDoc(collection(db, "reunioes"), {
+                livro,
+                data,
+                descricao: desc,
+                link: linkMeetReal,
+                criadoPor: usuarioAtual,
+                timestamp: serverTimestamp()
+            });
+            alert("Sucesso! Reunião agendada.");
+            location.reload();
+        } else {
+            console.warn("Evento criado, mas o link do Meet não foi gerado. Resposta:", result);
+            alert("O evento foi criado no seu Google Agenda, mas o link do Meet foi negado pela sua conta.");
+        }
+    } catch (e) {
+        console.error("Erro crítico na execução:", e);
     }
-    return "../img/default-book.png";
+}
+
+/**
+ * 4. AUTOCOMPLETE E RENDERIZAÇÃO
+ */
+function inicializarBuscaVisual() {
+    const inputLivro = document.getElementById('input-livro');
+    const containerResultados = document.getElementById('busca-resultados');
+    if (!inputLivro || !containerResultados) return;
+
+    inputLivro.addEventListener('input', () => {
+        const termo = inputLivro.value.toLowerCase();
+        containerResultados.innerHTML = "";
+        if (termo.length === 0) { containerResultados.style.display = "none"; return; }
+
+        const filtrados = todosOsLivrosDados.filter(l => l.titulo.toLowerCase().includes(termo));
+        if (filtrados.length > 0) {
+            containerResultados.style.display = "block";
+            filtrados.forEach(livro => {
+                const div = document.createElement('div');
+                div.style = "display:flex; align-items:center; padding:10px; cursor:pointer; border-bottom:1px solid #eee; background:white; color:black;";
+                div.innerHTML = `
+                    <img src="${livro.capa || '../img/default-book.png'}" style="width:30px; height:45px; object-fit:cover; margin-right:10px; border-radius:2px;">
+                    <span style="font-size:14px; font-weight:bold;">${livro.titulo}</span>
+                `;
+                div.onclick = () => {
+                    inputLivro.value = livro.titulo;
+                    containerResultados.style.display = "none";
+                };
+                containerResultados.appendChild(div);
+            });
+        } else { containerResultados.style.display = "none"; }
+    });
+    document.addEventListener('click', (e) => { if (e.target !== inputLivro) containerResultados.style.display = "none"; });
 }
 
 async function renderizarReunioes(lista) {
     const container = document.getElementById("lista-reunioes");
     if (!container) return;
-    container.innerHTML = "<p>Carregando reuniões...</p>";
-    
-    if (lista.length === 0) {
-        container.innerHTML = "<p>Nenhuma reunião encontrada.</p>";
-        return;
-    }
+    if (lista.length === 0) { container.innerHTML = "<p>Nenhuma reunião encontrada.</p>"; return; }
 
     const cardsArray = await Promise.all(lista.map(async (r) => {
-        const capaUrl = await buscarCapaLivro(r.livro);
-        
-        // REGRA DE EXCLUSÃO: Dono ou Admin
+        const livroData = todosOsLivrosDados.find(l => l.titulo === r.livro);
+        const capaUrl = livroData ? livroData.capa : "../img/default-book.png";
         const podeExcluir = r.criadoPor === usuarioAtual || usuarioCargo === 'admin';
-        
         const dataObj = new Date(r.data);
+
         return `
             <div class="card-reuniao">
                 <img src="${capaUrl}" class="capa-reuniao" alt="Capa">
                 <div class="card-body">
                     <h4>${r.livro}</h4>
-                    <p>📅 ${dataObj.toLocaleDateString()}</p>
-                    <p>⏰ ${dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                    <p>📅 ${dataObj.toLocaleDateString('pt-BR')}</p>
+                    <p>⏰ ${dataObj.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</p>
                 </div>
                 <button class="btn-detalhes" onclick="abrirDetalhes('${r.id}')">Ver Detalhes</button>
-                ${podeExcluir ? `<button class="btn-excluir-reuniao" onclick="excluirReuniao('${r.id}')" style="background:#ff4d4d; color:white; border:none; padding:8px; cursor:pointer; margin-top:5px; border-radius:4px; width:100%;">Excluir</button>` : ""}
+                ${podeExcluir ? `<button class="btn-excluir" data-id="${r.id}" style="background:#ff4d4d; color:white; border:none; padding:8px; cursor:pointer; margin-top:5px; border-radius:4px; width:100%;">Excluir</button>` : ""}
             </div>
         `;
     }));
     container.innerHTML = cardsArray.join("");
 }
 
-// --- 3. NOVA BUSCA VISUAL ---
-async function inicializarBuscaVisual() {
-    const inputLivro = document.getElementById('input-livro');
-    const containerResultados = document.getElementById('busca-resultados');
-    
-    if(!inputLivro || !containerResultados) return;
-
-    const querySnapshot = await getDocs(collection(db, "livros"));
-    todosOsLivrosDados = [];
-    nomesDosLivros = [];
-
-    querySnapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        const titulo = data.titulo || data.nome;
-        if (titulo) {
-            todosOsLivrosDados.push({ titulo, capa: data.capa });
-            nomesDosLivros.push(titulo);
-        }
+/**
+ * 5. AUXILIARES E EVENTOS
+ */
+document.querySelectorAll('.tab-btn').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const targetId = tab.dataset.tab;
+        document.querySelectorAll('.tab-btn, .tab-pane').forEach(el => el.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(targetId)?.classList.add('active');
     });
-
-    inputLivro.addEventListener('input', (e) => {
-        const termo = e.target.value.toLowerCase();
-        containerResultados.innerHTML = "";
-        
-        if (termo.length === 0) {
-            containerResultados.style.display = "none";
-            return;
-        }
-
-        const filtrados = todosOsLivrosDados.filter(l => l.titulo.toLowerCase().includes(termo));
-
-        if (filtrados.length > 0) {
-            containerResultados.style.display = "block";
-            filtrados.forEach(livro => {
-                const div = document.createElement('div');
-                div.className = 'item-busca-custom'; 
-                div.style = "display:flex; align-items:center; padding:10px; cursor:pointer; border-bottom:1px solid #eee;";
-                div.innerHTML = `
-                    <img src="${livro.capa || '../img/default-book.png'}" style="width:40px; height:55px; object-fit:cover; border-radius:4px; margin-right:10px;">
-                    <span style="font-size: 14px; font-weight: 500;">${livro.titulo}</span>
-                `;
-                
-                div.addEventListener('click', () => {
-                    inputLivro.value = livro.titulo;
-                    containerResultados.style.display = "none";
-                });
-                
-                containerResultados.appendChild(div);
-            });
-        } else {
-            containerResultados.style.display = "none";
-        }
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!inputLivro.contains(e.target) && !containerResultados.contains(e.target)) {
-            containerResultados.style.display = "none";
-        }
-    });
-}
-
-// --- 4. FUNÇÕES GLOBAIS (MODAL E EXCLUSÃO) ---
-window.abrirDetalhes = (id) => {
-    const reuniao = todasAsReunioes.find(r => r.id === id);
-    if (!reuniao) return;
-    const modal = document.getElementById("modal-detalhes");
-    const conteudo = document.getElementById("conteudo-modal");
-    conteudo.innerHTML = `
-        <h2 style="margin-top:0">${reuniao.livro}</h2>
-        <hr>
-        <p><strong>Descrição:</strong><br>${reuniao.descricao || "Sem descrição."}</p>
-        <p><strong>Organizado por:</strong> ${reuniao.criadoPor}</p>
-        <br>
-        <a href="${reuniao.link}" target="_blank" class="btn-entrar-meet" style="display:block; text-align:center; background:#28a745; color:white; padding:10px; text-decoration:none; border-radius:5px;">Entrar no Google Meet</a>
-    `;
-    modal.style.display = "block";
-};
-
-window.excluirReuniao = async (id) => {
-    const r = todasAsReunioes.find(item => item.id === id);
-    const msg = (usuarioCargo === 'admin' && r.criadoPor !== usuarioAtual) 
-                ? "Admin: Deseja excluir a reunião de outro usuário?" 
-                : "Deseja excluir esta reunião?";
-
-    if (confirm(msg)) {
-        try {
-            await deleteDoc(doc(db, "reunioes", id));
-            alert("Reunião removida!");
-            carregarDados(); 
-        } catch (e) {
-            alert("Erro ao excluir.");
-        }
-    }
-};
-
-// --- 5. AÇÃO DE CRIAR ---
-document.getElementById("btnCriarReuniao")?.addEventListener("click", async () => {
-    const livroInput = document.getElementById("input-livro");
-    const livroNome = livroInput.value.trim();
-    const dataReuniao = document.getElementById("data-reuniao").value;
-    const desc = document.getElementById("desc-reuniao").value;
-
-    if(!livroNome || !dataReuniao) return alert("Preencha livro e data!");
-
-    if (!nomesDosLivros.includes(livroNome)) {
-        alert("Erro: Este livro não existe na biblioteca. Selecione uma opção na lista.");
-        return;
-    }
-
-    try {
-        await addDoc(collection(db, "reunioes"), {
-            livro: livroNome,
-            data: dataReuniao,
-            descricao: desc,
-            link: `https://meet.google.com/new`, 
-            criadoPor: usuarioAtual,
-            timestamp: new Date(dataReuniao).getTime()
-        });
-        alert("Reunião agendada!");
-        location.reload();
-    } catch (e) { console.error(e); }
 });
 
-// --- 6. CARREGAMENTO INICIAL ---
-async function carregarDados() {
-    try {
-        await inicializarBuscaVisual();
-        const q = query(collection(db, "reunioes"), orderBy("timestamp", "asc"));
-        const snap = await getDocs(q);
-        todasAsReunioes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderizarReunioes(todasAsReunioes);
-    } catch (error) {
-        console.error("Erro ao carregar:", error);
+document.addEventListener("click", async (e) => {
+    if (e.target.classList.contains("btn-excluir")) {
+        const id = e.target.dataset.id;
+        if (confirm("Deseja excluir esta reunião?")) {
+            await deleteDoc(doc(db, "reunioes", id));
+            location.reload();
+        }
     }
-}
+});
 
-carregarDados();
+
+
+// Inicializar scripts
+window.onload = () => {
+    initGoogleAuth();
+    carregarDados();
+};
