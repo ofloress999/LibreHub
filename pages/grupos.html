@@ -76,10 +76,13 @@
                 <div id="agendar" class="tab-pane">
                     <div class="form-container">
                         <h3>Agendar Novo Círculo de Leitura</h3>
-                        
-                        <label>Livro do Debate:</label>
-                        <input type="text" id="input-livro" list="sugestoes-livros" placeholder="Digite o título do livro...">
-                        <datalist id="sugestoes-livros"></datalist>
+      
+                        <div class="form-group" style="position: relative;">
+                            <label>Livro do Debate:</label>
+                            <input type="text" id="input-livro" placeholder="Digite o título do livro..." autocomplete="off">
+                            <!-- Container para os resultados da busca -->
+                            <div id="busca-resultados" class="dropdown-busca"></div>
+                        </div>
 
                         <label>Data e Hora:</label>
                         <input type="datetime-local" id="data-reuniao">

@@ -188,3 +188,39 @@
     font-size: 28px;
     cursor: pointer;
 }
+
+.dropdown-busca {
+    position: absolute;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--bg-card); /* ou white */
+    border: 1px solid #ddd;
+    z-index: 1000;
+    display: none; /* Escondido por padrão */
+}
+
+.item-busca {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.item-busca:hover {
+    background-color: #f0f0f0;
+}
+
+.capa-mini {
+    width: 40px;
+    height: 50px;
+    object-fit: cover;
+    margin-right: 12px;
+    border-radius: 4px;
+}
+
+.item-busca-custom {
+    display: flex;
+    align-items: center;
+}
