@@ -13,25 +13,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Verificação de Autenticação e Persistência da Foto
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // 1. Busca os dados do usuário logado
-            const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-            
-            if (userDoc.exists()) {
-                const dados = userDoc.data();
-                const profileBtn = document.getElementById('profileBtn');
+        // 1. Tenta buscar a foto no Firestore
+        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+        
+        if (userDoc.exists()) {
+            const dados = userDoc.data();
+            const profileBtn = document.getElementById('profileBtn');
 
-                // 2. Se ele tiver uma foto salva no banco, aplica no Header
-                if (dados.fotoUrl && profileBtn) {
-                    profileBtn.src = dados.fotoUrl;
-                    profileBtn.style.objectFit = "cover"; // Garante que não estique
-                }
-            }
-        } else {
-            // Se não estiver logado e não estiver na index, redireciona
-            if (!window.location.pathname.includes('index.html')) {
-                window.location.href = "../index.html";
+            // 2. Se houver uma foto salva, atualiza o ícone superior
+            if (dados.fotoUrl && profileBtn) {
+                profileBtn.src = dados.fotoUrl;
+                profileBtn.style.objectFit = "cover";
+                profileBtn.style.borderRadius = "50%"; // Garante que fique redondo
             }
         }
+    } else {
+        window.location.href = "../index.html";
+    }
     });
 
     initGlobalFeatures();
@@ -247,18 +245,17 @@ window.excluirLivro = async (id) => {
 // --- UTILITÁRIOS ---
 
 function configurarLayoutPorCargo() {
+    const btnAdd = document.getElementById('btn-admin-add'); // ID do botão de cadastrar
     const areaAdmin = document.getElementById('area-admin-tabela');
-    const containerCards = document.getElementById('container-cards-livros');
-    const btnAdd = document.getElementById('btn-admin-add');
+    
+    console.log("Verificando Layout. Cargo:", tipoUsuario); // Isso aparecerá no F12
 
-    if (tipoUsuario === 'admin') {
-        if(areaAdmin) areaAdmin.style.display = 'block';
-        if(containerCards) containerCards.style.display = 'none';
-        if(btnAdd) btnAdd.style.display = 'block';
+    if (tipoUsuario === "admin") {
+        if (btnAdd) btnAdd.style.setProperty('display', 'block', 'important');
+        if (areaAdmin) areaAdmin.style.display = 'block';
     } else {
-        if(areaAdmin) areaAdmin.style.display = 'none';
-        if(containerCards) containerCards.style.display = 'grid';
-        if(btnAdd) btnAdd.style.display = 'none';
+        if (btnAdd) btnAdd.style.display = 'none';
+        if (areaAdmin) areaAdmin.style.display = 'none';
     }
 }
 

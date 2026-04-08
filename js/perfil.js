@@ -34,6 +34,25 @@ onAuthStateChanged(auth, async (user) => {
     } else {
         window.location.href = "login.html";
     }
+
+    if (user) {
+        // 1. Tenta buscar a foto no Firestore
+        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+        
+        if (userDoc.exists()) {
+            const dados = userDoc.data();
+            const profileBtn = document.getElementById('profileBtn');
+
+            // 2. Se houver uma foto salva, atualiza o ícone superior
+            if (dados.fotoUrl && profileBtn) {
+                profileBtn.src = dados.fotoUrl;
+                profileBtn.style.objectFit = "cover";
+                profileBtn.style.borderRadius = "50%"; // Garante que fique redondo
+            }
+        }
+    } else {
+        window.location.href = "../index.html";
+    }
 });
 
 // Preview da foto ao selecionar arquivo (Troca no header e no preview grande)

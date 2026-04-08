@@ -9,6 +9,26 @@ import {
     updateDoc 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+
+// Sincronizador Global de Perfil
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        // Busca os dados do usuário no Firestore toda vez que a página carrega
+        const userRef = doc(db, "usuarios", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+            const userData = userSnap.data();
+            const profileIcon = document.getElementById('profileBtn');
+            
+            // Se houver URL de foto no banco, substitui a imagem padrão
+            if (userData.fotoUrl && profileIcon) {
+                profileIcon.src = userData.fotoUrl;
+            }
+        }
+    }
+}); 
+
 // --- VARIÁVEIS GLOBAIS ---
 let todosOsLivros = [];
 // AJUSTE: O .trim() remove espaços vazios e o || "" evita erros se estiver nulo
