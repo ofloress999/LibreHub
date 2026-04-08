@@ -503,3 +503,105 @@ textarea { min-height: 100px; resize: none; }
     line-height: 1.5;
     text-align: justify;
 }
+
+
+/* ==========================================================================
+   AJUSTES DE RESPONSIVIDADE (MOBILE-FIRST ADAPTATIONS)
+   ========================================================================== */
+
+/* 1. Ajuste para Tablets e Celulares (Menos de 768px) */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column; /* Empilha a sidebar no topo */
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        padding: 10px;
+    }
+
+    .sidebar nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        gap: 5px;
+    }
+
+    .sidebar nav a {
+        padding: 8px;
+        font-size: 14px;
+        margin-bottom: 0;
+    }
+
+    .sidebar nav a span {
+        display: none; /* Esconde o texto, deixa só os ícones se existirem */
+    }
+
+    .main {
+        width: 100%;
+    }
+
+    .header {
+        padding: 15px;
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+
+    /* Ajuste dos cards de resumo do Dashboard */
+    .cards {
+        grid-template-columns: repeat(2, 1fr); /* 2 colunas no tablet */
+        padding: 15px;
+    }
+}
+
+/* 2. Ajuste para Celulares Pequenos (Menos de 480px) */
+@media (max-width: 480px) {
+    .cards {
+        grid-template-columns: 1fr; /* 1 coluna apenas */
+    }
+
+    /* Grid de livros e reuniões */
+    .books-grid, .meeting-grid, .books {
+        grid-template-columns: 1fr !important; 
+        padding: 10px;
+    }
+
+    /* Formulários e Modais */
+    .form-container, .modal-content {
+        width: 95% !important;
+        padding: 15px;
+    }
+
+    .detalhes-flex {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .capa-modal {
+        width: 130px;
+        height: auto;
+    }
+
+    /* Botões maiores para facilitar o toque */
+    button, .btn-save, #btnCriarReuniao {
+        width: 100%;
+        min-height: 48px;
+    }
+
+    /* Ajuste da tela de login (index.html) */
+    .left {
+        display: none; /* Esconde o painel preto de boas-vindas no mobile */
+    }
+    .right {
+        left: 0 !important;
+        width: 100% !important;
+    }
+}
+
+/* Garante que imagens nunca quebrem o layout */
+img {
+    max-width: 100%;
+    height: auto;
+}
