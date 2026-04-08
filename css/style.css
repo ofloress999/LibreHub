@@ -242,3 +242,60 @@ color:white;
 transform:scale(1.05);
 }
 
+
+@media (max-width: 480px) {
+    /* Estilo para os links de alternância no mobile */
+.toggle-mobile {
+    display: none; /* Escondido no Desktop */
+    margin-top: 20px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.toggle-mobile span {
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+/* Responsividade Mobile */
+@media (max-width: 768px) {
+    .toggle-mobile {
+        display: block; /* Aparece no Mobile */
+    }
+
+    /* Fazemos os dois lados ocuparem 100% da largura */
+    .left, .right {
+        width: 100% !important;
+        left: 0 !important;
+        transition: 0.6s ease-in-out;
+    }
+
+    /* No Mobile, as telas secundárias de "Boas vindas" do Desktop são inúteis */
+    .first-left, .second-right {
+        display: none !important;
+    }
+
+    /* ESTADO INICIAL (LOGIN) */
+    .left {
+        transform: translateX(-100%); /* Esconde o lado preto (Cadastro) */
+        z-index: 1;
+    }
+    .right {
+        background: white;
+        color: black;
+        z-index: 2;
+    }
+
+    /* ESTADO ATIVO (CADASTRO) */
+    .container-index.active .left {
+        transform: translateX(0); /* Traz o lado preto (Cadastro) para frente */
+        z-index: 3;
+    }
+    
+    /* Ajuste de inputs no mobile para não estourarem */
+    input {
+        width: 85% !important;
+    }
+}
+}
+

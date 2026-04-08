@@ -55,3 +55,21 @@ document.getElementById("btnEntrar").addEventListener("click", async () => {
         alert("E-mail ou senha incorretos.");
     }
 });
+
+const container = document.querySelector('.container-index');
+const btnCadastrar = document.getElementById('btnCadastrar'); // Botão desktop
+const btnLogin = document.getElementById('btnLogin');         // Botão desktop
+const switchToRegister = document.getElementById('switchToRegister'); // Link mobile
+const switchToLogin = document.getElementById('switchToLogin');       // Link mobile
+
+// Função para ativar modo Cadastro
+const ativarCadastro = () => container.classList.add('active');
+
+// Função para ativar modo Login
+const ativarLogin = () => container.classList.remove('active');
+
+btnCadastrar?.addEventListener('click', ativarCadastro);
+switchToRegister?.addEventListener('click', ativarCadastro);
+
+btnLogin?.addEventListener('click', ativarLogin);
+switchToLogin?.addEventListener('click', ativarLogin);
