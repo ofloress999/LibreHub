@@ -1,66 +1,65 @@
-import { db } from './firebase.js';
+import { auth, db } from './firebase.js'; // Importação do auth necessária
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
     collection, 
     getDocs, 
     deleteDoc, 
     doc, 
+    getDoc, // Importação faltante
     query, 
     where, 
     updateDoc 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// --- VARIÁVEIS GLOBAIS ---
+let todosOsLivros = [];
+// Limpeza robusta do cargo para evitar erros de aspas ou espaços
+const tipoUsuario = String(localStorage.getItem('tipoUsuario') || "").replace(/["']/g, "").trim().toLowerCase(); 
 
-// Sincronizador Global de Perfil
+// --- INICIALIZAÇÃO E AUTENTICAÇÃO ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // Busca os dados do usuário no Firestore toda vez que a página carrega
+        console.log("Usuário autenticado. Cargo:", tipoUsuario);
+        
+        // 1. Sincronizador de Perfil (Header)
         const userRef = doc(db, "usuarios", user.uid);
         const userSnap = await getDoc(userRef);
 
         if (userSnap.exists()) {
             const userData = userSnap.data();
             const profileIcon = document.getElementById('profileBtn');
-            
-            // Se houver URL de foto no banco, substitui a imagem padrão
             if (userData.fotoUrl && profileIcon) {
                 profileIcon.src = userData.fotoUrl;
+                profileIcon.style.objectFit = "cover";
             }
         }
-    }
-}); 
 
-// --- VARIÁVEIS GLOBAIS ---
-let todosOsLivros = [];
-// AJUSTE: O .trim() remove espaços vazios e o || "" evita erros se estiver nulo
-const tipoUsuario = (localStorage.getItem('tipoUsuario') || "").trim(); 
-
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("Sistema iniciado. Cargo detectado:", tipoUsuario);
-
-    // 1. Inicializa a interface (Mostra/Esconde botões de Admin)
-    configurarLayoutPorCargo();
-    
-    // 2. Carrega os dados do Firebase
-    carregarDadosDoFirebase();
-    
-    // 3. Configura os filtros de busca
-    setupFiltros();
-
-    // --- EVENTOS DE INTERAÇÃO ---
-    const inputCPF = document.getElementById('inputUsuarioBusca');
-    if (inputCPF) {
-        inputCPF.addEventListener('input', buscarUsuarioPorCPF);
-    }
-
-    const formEmprestimo = document.getElementById('formEmprestimo');
-    if (formEmprestimo) {
-        formEmprestimo.addEventListener('submit', salvarEmprestimoNoFirebase);
+        // 2. Inicializa a interface baseada no cargo
+        configurarLayoutPorCargo();
+        
+        // 3. Carrega os livros
+        carregarDadosDoFirebase();
+    } else {
+        // Redireciona se não houver usuário logado
+        window.location.href = "../index.html";
     }
 });
 
-// 1. Configura o que aparece na tela baseado no Cargo
+document.addEventListener('DOMContentLoaded', () => {
+    // Configura filtros e eventos de input que não dependem do Firebase
+    setupFiltros();
+
+    const inputCPF = document.getElementById('inputUsuarioBusca');
+    if (inputCPF) inputCPF.addEventListener('input', buscarUsuarioPorCPF);
+
+    const formEmprestimo = document.getElementById('formEmprestimo');
+    if (formEmprestimo) formEmprestimo.addEventListener('submit', salvarEmprestimoNoFirebase);
+});
+
+// --- LÓGICA DE INTERFACE ---
+
 function configurarLayoutPorCargo() {
-    const btnAdd = document.querySelector('.btn-add');
+    const btnAdd = document.querySelector('.btn-add'); // Botão de cadastrar livro
     const tabelaAdmin = document.querySelector('.table-container');
     const containerCards = document.getElementById('container-cards-livros');
     const tituloPagina = document.querySelector('.books-top h2');
@@ -78,7 +77,8 @@ function configurarLayoutPorCargo() {
     }
 }
 
-// 2. Busca os dados no Firebase
+// --- BUSCA E RENDERIZAÇÃO ---
+
 async function carregarDadosDoFirebase() {
     const corpoTabela = document.getElementById('tabelaLivrosCorpo');
     const containerCards = document.getElementById('container-cards-livros');
@@ -91,14 +91,28 @@ async function carregarDadosDoFirebase() {
         if (containerCards) containerCards.innerHTML = "";
 
         querySnapshot.forEach((docSnap) => {
-            const l = docSnap.data();
+            const data = docSnap.data();
             const id = docSnap.id;
-            todosOsLivros.push({ id, ...l });
+
+            // PADRONIZAÇÃO: Garante que o livro tenha título mesmo que cadastrado como 'nome'
+            const livro = {
+                id: id,
+                titulo: data.titulo || data.nome || "Sem título",
+                autor: data.autor || "Desconhecido",
+                status: data.status || "Disponível",
+                capa: data.capa || '../img/default-book.png',
+                usuarioAluguel: data.usuarioAluguel || "",
+                dataDevolucao: data.dataDevolucao || "",
+                pdfUrl: data.pdfUrl || "",
+                sinopse: data.sinopse || ""
+            };
+
+            todosOsLivros.push(livro);
 
             if (tipoUsuario === 'admin') {
-                renderizarLinhaTabela(id, l);
+                renderizarLinhaTabela(id, livro);
             } else {
-                renderizarCardUsuario(id, l);
+                renderizarCardUsuario(id, livro);
             }
         });
     } catch (error) {
@@ -106,20 +120,18 @@ async function carregarDadosDoFirebase() {
     }
 }
 
-// 3. Renderização para ADMIN (Tabela)
 function renderizarLinhaTabela(id, l) {
     const corpoTabela = document.getElementById('tabelaLivrosCorpo');
     if (!corpoTabela) return;
 
-    // Decide se mostra botão de "Alugar" ou "Devolver"
     const botaoAcao = l.status === 'Disponível' 
         ? `<button class="btn edit" onclick="abrirModalEmprestimo('${id}')">Alugar</button>`
-        : `<button class="btn return" style="background-color: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="devolverLivro('${id}')">Devolver</button>`;
+        : `<button class="btn return" style="background-color: #28a745; color: white;" onclick="devolverLivro('${id}')">Devolver</button>`;
 
     corpoTabela.innerHTML += `
         <tr>
-            <td><img src="${l.capa || '../img/default-book.png'}" style="width:40px; border-radius:4px;"></td>
-            <td><strong>${l.titulo || l.nome}</strong></td>
+            <td><img src="${l.capa}" style="width:40px; height:50px; object-fit:cover; border-radius:4px;"></td>
+            <td><strong>${l.titulo}</strong></td>
             <td>${l.autor}</td>
             <td>${l.usuarioAluguel || '-'}</td>
             <td><span class="${l.status === 'Disponível' ? 'status-livre' : 'status-alugado'}">${l.status}</span></td>
@@ -132,16 +144,15 @@ function renderizarLinhaTabela(id, l) {
     `;
 }
 
-// 4. Renderização para USUÁRIO (Cards)
 function renderizarCardUsuario(id, l) {
     const containerCards = document.getElementById('container-cards-livros');
     if (!containerCards) return;
 
     containerCards.innerHTML += `
         <div class="book-card-v2" onclick="abrirModalDetalhes('${id}')">
-            <img src="${l.capa || '../img/default-book.png'}" class="book-cover-v2">
+            <img src="${l.capa}" class="book-cover-v2">
             <div class="book-info-v2">
-                <h4>${l.titulo || l.nome}</h4>
+                <h4>${l.titulo}</h4>
                 <p class="author-v2">${l.autor}</p>
                 <span class="${l.status === 'Disponível' ? 'status-livre' : 'status-alugado'}">
                     ${l.status}
@@ -152,16 +163,16 @@ function renderizarCardUsuario(id, l) {
     `;
 }
 
-// --- FUNÇÕES DE LÓGICA DE EMPRÉSTIMO ---
+// --- LÓGICA DE EMPRÉSTIMO ---
 
 async function buscarUsuarioPorCPF() {
-    const cpf = document.getElementById('inputUsuarioBusca').value;
+    const cpf = document.getElementById('inputUsuarioBusca').value.trim();
     const painel = document.getElementById('detalhesUsuario');
     const btnConfirmar = document.getElementById('btnConfirmarEmprestimo');
 
     if (cpf.length < 11) {
-        painel.style.display = 'none';
-        btnConfirmar.disabled = true;
+        if(painel) painel.style.display = 'none';
+        if(btnConfirmar) btnConfirmar.disabled = true;
         return;
     }
 
@@ -173,7 +184,6 @@ async function buscarUsuarioPorCPF() {
             const user = querySnapshot.docs[0].data();
             document.getElementById('info-nome').innerText = user.nome;
             document.getElementById('info-email').innerText = user.email;
-            
             painel.style.display = 'block';
             btnConfirmar.disabled = false;
         } else {
@@ -187,7 +197,6 @@ async function buscarUsuarioPorCPF() {
 
 async function salvarEmprestimoNoFirebase(e) {
     e.preventDefault();
-    
     const idLivro = document.getElementById('idLivroModal').value;
     const nomeUsuario = document.getElementById('info-nome').innerText;
     
@@ -196,9 +205,7 @@ async function salvarEmprestimoNoFirebase(e) {
     const dataDevolucao = hoje.toLocaleDateString('pt-BR');
 
     try {
-        const livroRef = doc(db, "livros", idLivro);
-        
-        await updateDoc(livroRef, {
+        await updateDoc(doc(db, "livros", idLivro), {
             status: "Alugado",
             usuarioAluguel: nomeUsuario,
             dataDevolucao: dataDevolucao
@@ -207,41 +214,47 @@ async function salvarEmprestimoNoFirebase(e) {
         alert("Empréstimo registrado!");
         fecharModalEmprestimo();
         carregarDadosDoFirebase();
-        
     } catch (error) {
         console.error("Erro:", error);
-        alert("Erro ao processar.");
+        alert("Erro ao processar empréstimo.");
     }
 }
 
-// --- DEVOLUÇÃO ---
+// --- DEVOLUÇÃO E EXCLUSÃO ---
 
 window.devolverLivro = async (id) => {
     if (!confirm("Confirmar a devolução deste livro?")) return;
-
     try {
-        const livroRef = doc(db, "livros", id);
-        await updateDoc(livroRef, {
+        await updateDoc(doc(db, "livros", id), {
             status: "Disponível",
             usuarioAluguel: "",
             dataDevolucao: ""
         });
-
-        alert("Livro devolvido com sucesso!");
+        alert("Livro devolvido!");
         carregarDadosDoFirebase();
     } catch (error) {
         console.error("Erro ao devolver:", error);
     }
 };
 
-// --- MODAIS E UTILITÁRIOS ---
+window.excluirLivro = async (id) => {
+    if (!confirm("Tem certeza que deseja excluir?")) return;
+    try {
+        await deleteDoc(doc(db, "livros", id));
+        alert("Livro removido!");
+        carregarDadosDoFirebase();
+    } catch (error) {
+        console.error("Erro ao excluir:", error);
+    }
+};
+
+// --- MODAIS ---
 
 window.abrirModalEmprestimo = (id) => {
     const livro = todosOsLivros.find(l => l.id === id);
     if(!livro) return;
-
     document.getElementById('idLivroModal').value = id;
-    document.getElementById('nomeLivroModal').innerText = "Livro: " + (livro.titulo || livro.nome);
+    document.getElementById('nomeLivroModal').innerText = "Livro: " + livro.titulo;
     document.getElementById('modalEmprestimo').style.display = 'flex';
 };
 
@@ -255,8 +268,8 @@ window.abrirModalDetalhes = (id) => {
     const livro = todosOsLivros.find(l => l.id === id);
     if (!livro) return;
 
-    document.getElementById('detalheCapa').src = livro.capa || '../img/default-book.png';
-    document.getElementById('detalheTitulo').innerText = livro.titulo || livro.nome;
+    document.getElementById('detalheCapa').src = livro.capa;
+    document.getElementById('detalheTitulo').innerText = livro.titulo;
     document.getElementById('detalheAutor').innerText = "Autor: " + livro.autor;
     document.getElementById('detalheSinopse').innerText = livro.sinopse || "Sem sinopse disponível.";
     
@@ -271,7 +284,6 @@ window.abrirModalDetalhes = (id) => {
     } else {
         btnPDF.style.display = 'none';
     }
-
     document.getElementById('modalDetalhesLivro').style.display = 'flex';
 };
 
@@ -279,16 +291,7 @@ window.fecharModalDetalhes = () => {
     document.getElementById('modalDetalhesLivro').style.display = 'none';
 };
 
-window.excluirLivro = async (id) => {
-    if (!confirm("Tem certeza que deseja excluir?")) return;
-    try {
-        await deleteDoc(doc(db, "livros", id));
-        alert("Livro removido!");
-        carregarDadosDoFirebase();
-    } catch (error) {
-        console.error("Erro ao excluir:", error);
-    }
-};
+// --- FILTROS ---
 
 function setupFiltros() {
     const busca = document.getElementById('inputBusca');
@@ -298,19 +301,21 @@ function setupFiltros() {
         const termo = busca.value.toLowerCase();
         const statusSel = filtro.value;
 
+        // Filtro da Tabela (Admin)
         document.querySelectorAll('#tabelaLivrosCorpo tr').forEach(tr => {
             const texto = tr.innerText.toLowerCase();
-            const statusText = tr.querySelector('span')?.innerText || "";
+            const statusLinha = tr.querySelector('span')?.innerText || "";
             const bateBusca = texto.includes(termo);
-            const bateStatus = statusSel === "Todos" || statusText === statusSel;
+            const bateStatus = statusSel === "Todos" || statusLinha === statusSel;
             tr.style.display = (bateBusca && bateStatus) ? "" : "none";
         });
 
+        // Filtro dos Cards (Usuário)
         document.querySelectorAll('.book-card-v2').forEach(card => {
             const texto = card.innerText.toLowerCase();
-            const statusText = card.querySelector('span')?.innerText || "";
+            const statusCard = card.querySelector('span')?.innerText || "";
             const bateBusca = texto.includes(termo);
-            const bateStatus = statusSel === "Todos" || statusText === statusSel;
+            const bateStatus = statusSel === "Todos" || statusCard === statusSel;
             card.style.display = (bateBusca && bateStatus) ? "flex" : "none";
         });
     };

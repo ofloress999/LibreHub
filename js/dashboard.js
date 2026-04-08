@@ -1,59 +1,57 @@
 import { auth, db } from './firebase.js'; 
 import { 
-    collection, getDocs, deleteDoc, doc, query, where, updateDoc, addDoc, limit, getDoc 
+    collection, getDocs, deleteDoc, doc, query, where, updateDoc, getDoc 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // --- VARIÁVEIS GLOBAIS ---
 let todosOsLivros = [];
-const tipoUsuario = (localStorage.getItem('tipoUsuario') || "").trim();
+// Limpeza robusta do cargo para evitar falhas de comparação
+const tipoUsuario = String(localStorage.getItem('tipoUsuario') || "").replace(/["']/g, "").trim().toLowerCase();
 
 // --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Verificação de Autenticação e Persistência da Foto
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-        // 1. Tenta buscar a foto no Firestore
-        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-        
-        if (userDoc.exists()) {
-            const dados = userDoc.data();
-            const profileBtn = document.getElementById('profileBtn');
-
-            // 2. Se houver uma foto salva, atualiza o ícone superior
-            if (dados.fotoUrl && profileBtn) {
-                profileBtn.src = dados.fotoUrl;
-                profileBtn.style.objectFit = "cover";
-                profileBtn.style.borderRadius = "50%"; // Garante que fique redondo
+            // 1. Persistência da Foto de Perfil
+            const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+            if (userDoc.exists()) {
+                const dados = userDoc.data();
+                const profileBtn = document.getElementById('profileBtn');
+                if (dados.fotoUrl && profileBtn) {
+                    profileBtn.src = dados.fotoUrl;
+                    profileBtn.style.objectFit = "cover";
+                    profileBtn.style.borderRadius = "50%";
+                }
             }
+
+            // 2. Configura Layout e busca dados
+            configurarLayoutPorCargo();
+            carregarDadosDoFirebase();
+            configurarEventosModais();
+            setupFiltros();
+        } else {
+            window.location.href = "../index.html";
         }
-    } else {
-        window.location.href = "../index.html";
-    }
     });
 
     initGlobalFeatures();
-    // ... resto do seu código
 });
 
-// --- MODIFICAÇÃO NA FUNÇÃO DE CARACTERÍSTICAS GLOBAIS ---
+// --- FUNÇÕES DE INTERFACE ---
 
 function initGlobalFeatures() {
-    // Lógica do Tema (Dark/Light)
-    const temaSalvo = localStorage.getItem('theme');
+    // Lógica do Tema
     const themeToggle = document.getElementById('theme-toggle');
-    
-    if (temaSalvo === 'dark') document.body.classList.add('dark');
     if (themeToggle) {
-        themeToggle.innerText = temaSalvo === 'dark' ? '☀️' : '🌙';
         themeToggle.onclick = () => {
             const isDark = document.body.classList.toggle('dark');
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            themeToggle.innerText = isDark ? '☀️' : '🌙';
         };
     }
+    if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
 
-    // Dropdown do Perfil
+    // Dropdown Perfil
     const profileBtn = document.getElementById('profileBtn');
     const dropdown = document.getElementById('dropdown');
     if (profileBtn && dropdown) {
@@ -62,16 +60,28 @@ function initGlobalFeatures() {
             dropdown.classList.toggle('show');
         };
     }
-
-    // Fechar dropdown ao clicar fora
-    document.addEventListener('click', () => {
-        if (dropdown) dropdown.classList.remove('show');
-    });
+    document.addEventListener('click', () => dropdown?.classList.remove('show'));
 }
 
-// ... as outras funções (carregarDadosDoFirebase, etc) continuam iguais ...
+function configurarLayoutPorCargo() {
+    const btnAdd = document.getElementById('btn-admin-add'); 
+    const areaAdmin = document.getElementById('area-admin-tabela');
+    const containerCards = document.getElementById('container-cards-livros');
 
-// --- CARREGAMENTO DE DADOS ---
+    console.log("Configurando Layout para:", tipoUsuario);
+
+    if (tipoUsuario === "admin") {
+        if (btnAdd) btnAdd.style.setProperty('display', 'block', 'important');
+        if (areaAdmin) areaAdmin.style.display = 'block';
+        if (containerCards) containerCards.style.display = 'none';
+    } else {
+        if (btnAdd) btnAdd.style.display = 'none';
+        if (areaAdmin) areaAdmin.style.display = 'none';
+        if (containerCards) containerCards.style.display = 'grid';
+    }
+}
+
+// --- CARREGAMENTO DE DADOS (FIREBASE) ---
 
 async function carregarDadosDoFirebase() {
     const corpoTabela = document.getElementById('tabelaLivrosCorpo');
@@ -86,25 +96,43 @@ async function carregarDadosDoFirebase() {
         querySnapshot.forEach((docSnap) => {
             const data = docSnap.data();
             const id = docSnap.id;
-            todosOsLivros.push({ id, ...data });
 
-            tipoUsuario === 'admin' ? renderizarLinhaTabela(id, data) : renderizarCardUsuario(id, data);
+            // Padronização dos dados para evitar que campos vazios quebrem a lista
+            const livro = {
+                id,
+                titulo: data.titulo || data.nome || "Sem título",
+                autor: data.autor || "Desconhecido",
+                capa: data.capa || '../img/default-book.png',
+                status: data.status || "Disponível",
+                sinopse: data.sinopse || "",
+                pdfUrl: data.pdfUrl || null
+            };
+
+            todosOsLivros.push(livro);
+
+            if (tipoUsuario === 'admin') {
+                renderizarLinhaTabela(id, livro);
+            } else {
+                renderizarCardUsuario(id, livro);
+            }
         });
-    } catch (error) { console.error("Erro:", error); }
+    } catch (error) { 
+        console.error("Erro ao carregar livros:", error); 
+    }
 }
-
-// --- RENDERIZAÇÃO ---
 
 function renderizarLinhaTabela(id, l) {
     const corpo = document.getElementById('tabelaLivrosCorpo');
+    if (!corpo) return;
+
     const btnAcao = l.status === 'Disponível' 
         ? `<button class="btn edit" onclick="abrirModalEmprestimo('${id}')">Alugar</button>`
         : `<button class="btn return" style="background:#28a745;color:white" onclick="devolverLivro('${id}')">Devolver</button>`;
 
     corpo.innerHTML += `
         <tr>
-            <td><img src="${l.capa || '../img/default-book.png'}" style="width:40px;border-radius:4px"></td>
-            <td><strong>${l.titulo || l.nome}</strong></td>
+            <td><img src="${l.capa}" style="width:40px;height:50px;object-fit:cover;border-radius:4px"></td>
+            <td><strong>${l.titulo}</strong></td>
             <td>${l.autor}</td>
             <td><span class="${l.status === 'Disponível' ? 'status-livre' : 'status-alugado'}">${l.status}</span></td>
             <td>
@@ -116,25 +144,32 @@ function renderizarLinhaTabela(id, l) {
 
 function renderizarCardUsuario(id, l) {
     const container = document.getElementById('container-cards-livros');
+    if (!container) return;
+
     container.innerHTML += `
         <div class="book-card-v2" onclick="abrirModalDetalhes('${id}')">
-            <img src="${l.capa || '../img/default-book.png'}">
+            <img src="${l.capa}" style="width:100%; height:200px; object-fit:cover;">
             <div class="book-info-v2">
-                <h4>${l.titulo || l.nome}</h4>
+                <h4>${l.titulo}</h4>
                 <p>${l.autor}</p>
                 <span class="${l.status === 'Disponível' ? 'status-livre' : 'status-alugado'}">${l.status}</span>
             </div>
         </div>`;
 }
 
-// --- LÓGICA DE EMPRÉSTIMO (MODAL) ---
+// --- LÓGICA DE EMPRÉSTIMO ---
 
 function configurarEventosModais() {
     const inputCPF = document.getElementById('inputUsuarioBusca');
     if (inputCPF) inputCPF.addEventListener('input', buscarUsuarioPorCPF);
 
     const formEmp = document.getElementById('formEmprestimo');
-    if (formEmp) formEmp.addEventListener('submit', confirmarAluguel);
+    if (formEmp) {
+        formEmp.onsubmit = async (e) => {
+            e.preventDefault();
+            await confirmarAluguel();
+        };
+    }
 }
 
 async function buscarUsuarioPorCPF() {
@@ -143,13 +178,11 @@ async function buscarUsuarioPorCPF() {
     const btnConfirmar = document.getElementById('btnConfirmarEmprestimo');
 
     if (cpfBusca.length < 11) {
-        painel.style.display = 'none';
-        btnConfirmar.disabled = true;
+        if(painel) painel.style.display = 'none';
         return;
     }
 
     try {
-        // Busca usuário na coleção "usuarios" do Firebase por CPF
         const q = query(collection(db, "usuarios"), where("cpf", "==", cpfBusca));
         const snap = await getDocs(q);
 
@@ -157,18 +190,15 @@ async function buscarUsuarioPorCPF() {
             const u = snap.docs[0].data();
             document.getElementById('info-nome').innerText = u.nome;
             document.getElementById('info-email').innerText = u.email;
-            document.getElementById('info-matricula').innerText = u.matricula || "-";
-            painel.style.display = 'block';
-            btnConfirmar.disabled = false;
+            if(painel) painel.style.display = 'block';
+            if(btnConfirmar) btnConfirmar.disabled = false;
         } else {
-            painel.style.display = 'none';
-            btnConfirmar.disabled = true;
+            if(painel) painel.style.display = 'none';
         }
     } catch (e) { console.error(e); }
 }
 
-async function confirmarAluguel(e) {
-    e.preventDefault();
+async function confirmarAluguel() {
     const idLivro = document.getElementById('idLivroModal').value;
     const nomeUser = document.getElementById('info-nome').innerText;
     const dataDev = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR');
@@ -189,8 +219,9 @@ async function confirmarAluguel(e) {
 
 window.abrirModalEmprestimo = (id) => {
     const l = todosOsLivros.find(b => b.id === id);
+    if(!l) return;
     document.getElementById('idLivroModal').value = id;
-    document.getElementById('nomeLivroModal').innerText = "Livro: " + (l.titulo || l.nome);
+    document.getElementById('nomeLivroModal').innerText = "Livro: " + l.titulo;
     document.getElementById('modalEmprestimo').style.display = 'flex';
 };
 
@@ -204,10 +235,10 @@ window.abrirModalDetalhes = (id) => {
     const l = todosOsLivros.find(b => b.id === id);
     if (!l) return;
 
-    document.getElementById('detalheCapa').src = l.capa || '../img/default-book.png';
-    document.getElementById('detalheTitulo').innerText = l.titulo || l.nome;
+    document.getElementById('detalheCapa').src = l.capa;
+    document.getElementById('detalheTitulo').innerText = l.titulo;
     document.getElementById('detalheAutor').innerText = l.autor;
-    document.getElementById('detalheSinopse').innerText = l.sinopse || "Sem descrição.";
+    document.getElementById('detalheSinopse').innerText = l.sinopse;
     
     const statusEl = document.getElementById('detalheStatus');
     statusEl.innerText = l.status;
@@ -230,54 +261,21 @@ window.fecharModalDetalhes = () => {
 
 window.devolverLivro = async (id) => {
     if (!confirm("Confirmar devolução?")) return;
-    await updateDoc(doc(db, "livros", id), {
-        status: "Disponível", usuarioAluguel: "", dataDevolucao: ""
-    });
-    carregarDadosDoFirebase();
+    try {
+        await updateDoc(doc(db, "livros", id), {
+            status: "Disponível", usuarioAluguel: "", dataDevolucao: ""
+        });
+        carregarDadosDoFirebase();
+    } catch (e) { console.error(e); }
 };
 
 window.excluirLivro = async (id) => {
     if (!confirm("Excluir livro permanentemente?")) return;
-    await deleteDoc(doc(db, "livros", id));
-    carregarDadosDoFirebase();
+    try {
+        await deleteDoc(doc(db, "livros", id));
+        carregarDadosDoFirebase();
+    } catch (e) { console.error(e); }
 };
-
-// --- UTILITÁRIOS ---
-
-function configurarLayoutPorCargo() {
-    const btnAdd = document.getElementById('btn-admin-add'); // ID do botão de cadastrar
-    const areaAdmin = document.getElementById('area-admin-tabela');
-    
-    console.log("Verificando Layout. Cargo:", tipoUsuario); // Isso aparecerá no F12
-
-    if (tipoUsuario === "admin") {
-        if (btnAdd) btnAdd.style.setProperty('display', 'block', 'important');
-        if (areaAdmin) areaAdmin.style.display = 'block';
-    } else {
-        if (btnAdd) btnAdd.style.display = 'none';
-        if (areaAdmin) areaAdmin.style.display = 'none';
-    }
-}
-
-function initGlobalFeatures() {
-    const themeToggle = document.getElementById('theme-toggle');
-    if (themeToggle) {
-        themeToggle.onclick = () => {
-            const isDark = document.body.classList.toggle('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-        };
-    }
-    if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
-
-    const profileBtn = document.getElementById('profileBtn');
-    if (profileBtn) {
-        profileBtn.onclick = (e) => {
-            e.stopPropagation();
-            document.getElementById('dropdown').classList.toggle('show');
-        };
-    }
-    document.onclick = () => document.getElementById('dropdown')?.classList.remove('show');
-}
 
 function setupFiltros() {
     const busca = document.getElementById('inputBusca');
@@ -287,11 +285,20 @@ function setupFiltros() {
         const termo = busca.value.toLowerCase();
         const status = filtroStatus.value;
 
-        document.querySelectorAll('tr, .book-card-v2').forEach(el => {
-            const texto = el.innerText.toLowerCase();
+        // Filtro para tabela
+        document.querySelectorAll('#tabelaLivrosCorpo tr').forEach(tr => {
+            const texto = tr.innerText.toLowerCase();
             const bateBusca = texto.includes(termo);
             const bateStatus = status === "Todos" || texto.includes(status.toLowerCase());
-            el.style.display = (bateBusca && bateStatus) ? "" : "none";
+            tr.style.display = (bateBusca && bateStatus) ? "" : "none";
+        });
+
+        // Filtro para cards
+        document.querySelectorAll('.book-card-v2').forEach(card => {
+            const texto = card.innerText.toLowerCase();
+            const bateBusca = texto.includes(termo);
+            const bateStatus = status === "Todos" || texto.includes(status.toLowerCase());
+            card.style.display = (bateBusca && bateStatus) ? "flex" : "none";
         });
     };
 

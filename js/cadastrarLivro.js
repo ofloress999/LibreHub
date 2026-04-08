@@ -1,28 +1,26 @@
+// 1. ADICIONADO: Imports necessários
+import { db } from './firebase.js';
+import { collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.querySelector('.form-book');
     const themeToggle = document.getElementById('theme-toggle');
     const body = document.body;
 
-    // --- 1. Lógica de Tema (Reaproveitada) ---
+    // --- Lógica de Tema ---
     if (localStorage.getItem('theme') === 'dark') body.classList.add('dark');
-    themeToggle.addEventListener('click', () => {
+    themeToggle?.addEventListener('click', () => {
         body.classList.toggle('dark');
         localStorage.setItem('theme', body.classList.contains('dark') ? 'dark' : 'light');
     });
 
-    // --- 2. Menu Lateral ---
-    document.getElementById('menu-toggle')?.addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('closed');
-    });
-
-    // --- 3. Cadastro do Livro ---
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const inputs = form.querySelectorAll('input');
-            const capaFile = form.querySelectorAll('input[type="file"]')[0].files[0];
-            const pdfFile = form.querySelectorAll('input[type="file"]')[1].files[0];
+            const capaFile = form.querySelectorAll('input[type="file"]')[0]?.files[0];
+            const pdfFile = form.querySelectorAll('input[type="file"]')[1]?.files[0];
 
             const toBase64 = file => new Promise((resolve, reject) => {
                 if (!file) resolve(null);
@@ -33,34 +31,42 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             try {
+                // Feedback visual: desabilita o botão para evitar cliques duplos
+                const btnSubmit = form.querySelector('button[type="submit"]');
+                btnSubmit.disabled = true;
+                btnSubmit.innerText = "Cadastrando no Banco...";
+
                 const capaBase64 = await toBase64(capaFile);
                 const pdfBase64 = await toBase64(pdfFile);
 
-                // IMPORTANTE: Nomes das propriedades ajustados para o Modal
+                // 2. MODIFICADO: Objeto preparado para o Firebase
                 const novoLivro = {
-                    id: Date.now(),
-                    nome: inputs[0].value,
+                    titulo: inputs[0].value, // Usando 'titulo' para bater com a listagem
                     autor: inputs[1].value,
                     categoria: inputs[2].value,
                     quantidade: inputs[3].value,
-                    sinopse: form.querySelector('textarea').value, // Antes era 'descricao'
+                    sinopse: form.querySelector('textarea').value,
                     capa: capaBase64 || '../img/default-book.png',
-                    pdfUrl: pdfBase64, // Antes era 'pdf'
+                    pdfUrl: pdfBase64 || null,
                     status: "Disponível",
-                    dataCadastro: new Date().toLocaleDateString()
+                    dataCadastro: new Date().toISOString() 
                 };
 
-                let biblioteca = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
-                biblioteca.push(novoLivro);
-                localStorage.setItem('biblioteca_livros', JSON.stringify(biblioteca));
+                // 3. ADICIONADO: Envio real para o Firestore
+                await addDoc(collection(db, "livros"), novoLivro);
 
-                alert('Livro cadastrado com sucesso!');
+                alert('Livro cadastrado com sucesso no Firebase!');
                 window.location.href = 'books.html';
 
             } catch (err) {
-                alert('Erro ao processar arquivos. Tente arquivos menores.');
-                console.error(err);
-            }
+    // Isto vai abrir um pop-up com o erro técnico real
+    alert('ERRO TÉCNICO: ' + err.code + " - " + err.message);
+    console.error("Erro completo:", err);
+    
+    const btnSubmit = form.querySelector('button[type="submit"]');
+    btnSubmit.disabled = false;
+    btnSubmit.innerText = "Cadastrar Livro";
+}
         });
     }
 });
