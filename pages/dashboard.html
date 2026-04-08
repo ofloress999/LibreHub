@@ -21,7 +21,7 @@
                 <a href="dashboard.html"><p>Dashboard</p></a>
                 <a href="books.html"><p>Livros</p></a>
                 <a href="grupos.html"><p>Grupos</p></a>
-                <a href="perfil"><p>Perfil</p></a>
+                <a href="perfil.html"><p>Perfil</p></a>
                 <a href="admin.html"><p>Admin</p></a>
             </nav>
         </aside>
@@ -36,8 +36,8 @@
                     <div class="profile">
                         <img src="../img/user.png" id="profileBtn">
                         <div class="dropdown" id="dropdown">
-                            <a href="#">Perfil</a>
-                            <a href="#">Logout</a>
+                            <a href="perfil.html">Perfil</a>
+                            <a href="../index.html">Logout</a>
                         </div>
                     </div>
                 </div>
@@ -77,21 +77,18 @@
         </div>
     </div>
 
-    <script src="../js/dashboard.js"></script>
     <script type="module" src="../js/dashboard.js"></script>
-    
-    <script>
-        // js/dashboard.js (ou dentro da tag script da dashboard)
-    import { db } from '../js/firebase.js'; 
-    import { collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // Carregar dados assim que a página abrir
-    window.onload = async () => {
-    carregarResumoLivros();
-    carregarUltimosLivros();
-};
+    <script type="module">
+        import { db } from '../js/firebase.js';
+        import { collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Carregar dados assim que a página abrir
+        window.onload = async () => {
+        carregarResumoLivros();
+        carregarUltimosLivros();
+        };    
     </script>
-
-
+    
 </body>
 </html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Perfil - Biblioteca</title>
+    <!-- CSS das outras páginas para manter o padrão -->
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/admin.css">
+    <!-- CSS específico para os cards de perfil e avatar -->
+    <link rel="stylesheet" href="../css/perfil.css">
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- Sidebar Identica às outras -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="logo">BIBLIOTECA</h2>
+                <div class="menu-toggle" id="menu-toggle">☰</div>
+            </div>
+
+            <nav>
+                <a href="dashboard.html"><p>Dashboard</p></a>
+                <a href="books.html"><p>Livros</p></a>
+                <a href="grupos.html"><p>Grupos</p></a>
+                <a href="perfil.html" class="active"><p>Perfil</p></a>
+                <a href="admin.html" id="link-admin" style="display:none;"><p>Admin</p></a>
+            </nav>
+        </aside>
+
+        <!-- Conteúdo Principal -->
+        <div class="main">
+            <!-- Header Identico -->
+            <header class="header">
+                <h1>Meu Perfil</h1>
+                <div class="header-right">
+                    <div class="theme-toggle" id="theme-toggle">🌙</div>
+                    <div class="profile">
+                        <img src="../img/user.png" id="profileBtn">
+                        <div class="dropdown" id="dropdown">
+                            <a href="perfil.html">Perfil</a>
+                            <a href="../index.html" id="logoutBtn">Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Seção do Perfil -->
+            <section class="perfil-container">
+                <div class="perfil-grid">
+                    
+                    <!-- Card Esquerdo: Foto -->
+                    <div class="perfil-card main-info">
+                        <div class="avatar-section">
+                            <div id="avatar-preview" class="avatar-circle">
+                                <!-- Ícone de usuário caso não tenha foto -->
+                                👤
+                            </div>
+                            <label for="input-foto" class="btn-change-photo">Alterar Foto</label>
+                            <input type="file" id="input-foto" accept="image/*" hidden>
+                        </div>
+                        <h2 id="nome-usuario-display">Carregando...</h2>
+                        <p id="email-usuario-display">...</p>
+                    </div>
+
+                    <!-- Card Direito: Formulário -->
+                    <div class="perfil-card details-info">
+                        <form id="form-perfil-edit">
+                            <div class="form-group">
+                                <label>Nome Completo</label>
+                                <input type="text" id="perfil-nome" required>
+                            </div>
+                            <div class="form-group">
+                                <label>CPF (Obrigatório para empréstimos)</label>
+                                <input type="text" id="perfil-cpf" placeholder="000.000.000-00" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Telefone</label>
+                                <input type="text" id="perfil-telefone" placeholder="(00) 00000-0000">
+                            </div>
+                            <button type="submit" class="btn-save">Atualizar Dados</button>
+                        </form>
+                    </div>
+
+                </div>
+
+                <!-- Histórico e Atividades -->
+                <div class="perfil-bottom">
+                    <div class="perfil-card">
+                        <h3>📅 Minhas Reuniões</h3>
+                        <div id="minhas-reunioes" class="history-list">
+                            <p class="empty-text">Nenhuma reunião encontrada.</p>
+                        </div>
+                    </div>
+                    <div class="perfil-card">
+                        <h3>📚 Livros Alugados</h3>
+                        <div id="meus-livros" class="history-list">
+                            <p class="empty-text">Nenhum livro alugado até o momento.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script type="module" src="../js/perfil.js"></script>
+    <!-- Dashboard.js cuida do tema, sidebar e dropdown -->
+    <script type="module" src="../js/dashboard.js"></script>
+</body>
+</html>

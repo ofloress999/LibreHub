@@ -1,268 +1,303 @@
-// js/dashboard.js
-import { db } from './firebase.js'; 
-import { collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { auth, db } from './firebase.js'; 
+import { 
+    collection, getDocs, deleteDoc, doc, query, where, updateDoc, addDoc, limit, getDoc 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-async function carregarDadosDashboard() {
-    try {
-        // 1. Busca todos os usuários para o contador
-        const usuariosSnapshot = await getDocs(collection(db, "usuarios"));
-        document.getElementById("total-usuarios").innerText = usuariosSnapshot.size;
+// --- VARIÁVEIS GLOBAIS ---
+let todosOsLivros = [];
+const tipoUsuario = (localStorage.getItem('tipoUsuario') || "").trim();
 
-        // 2. Busca todos os livros
-        const livrosSnapshot = await getDocs(collection(db, "livros"));
-        let total = livrosSnapshot.size;
-        let disponiveis = 0;
-        let alugados = 0;
-
-        livrosSnapshot.forEach(doc => {
-            const dados = doc.data();
-            if (dados.status === "disponivel") disponiveis++;
-            else if (dados.status === "alugado") alugados++;
-        });
-
-        // Atualiza os números na tela
-        document.getElementById("num-total-livros").innerText = total;
-        document.getElementById("num-disponiveis").innerText = disponiveis;
-        document.getElementById("num-alugados").innerText = alugados;
-
-    } catch (error) {
-        console.error("Erro ao carregar dashboard:", error);
-    }
-}
-
-// Executa quando a página termina de carregar
-window.onload = carregarDadosDashboard;
-
-const usuario = localStorage.getItem('usuarioLogado');
-
-if (!usuario) {
-    alert("Você precisa estar logado!");
-    window.location.href = "../index.html"; // Volta para o login
-}
-
+// --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Verificação de Autenticação e Persistência da Foto
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            // 1. Busca os dados do usuário logado
+            const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+            
+            if (userDoc.exists()) {
+                const dados = userDoc.data();
+                const profileBtn = document.getElementById('profileBtn');
+
+                // 2. Se ele tiver uma foto salva no banco, aplica no Header
+                if (dados.fotoUrl && profileBtn) {
+                    profileBtn.src = dados.fotoUrl;
+                    profileBtn.style.objectFit = "cover"; // Garante que não estique
+                }
+            }
+        } else {
+            // Se não estiver logado e não estiver na index, redireciona
+            if (!window.location.pathname.includes('index.html')) {
+                window.location.href = "../index.html";
+            }
+        }
+    });
+
     initGlobalFeatures();
-
-    // 1. Identifica se estamos na Dashboard (Home)
-    const recentContainer = document.getElementById('recent-books-container');
-    if (recentContainer) {
-        console.log("Iniciando Dashboard...");
-        atualizarDashboardReal();
-        // Se houver função de estatísticas, chame-a aqui
-        if (typeof atualizarEstatisticasDash === "function") atualizarEstatisticasDash();
-    }
-
-    // 2. Identifica se estamos na Listagem de Livros (Tabela)
-    const tabelaCorpo = document.getElementById('tabelaLivrosCorpo');
-    if (tabelaCorpo) {
-        renderizarComoTabela(); 
-        setupFiltros();
-        
-        // Configura a busca de usuário no modal de empréstimo
-        const inputBuscaUser = document.getElementById('inputUsuarioBusca');
-        if (inputBuscaUser) {
-            inputBuscaUser.addEventListener('input', buscarUsuarioPorCPF);
-        }
-        
-        // Configura o envio do formulário de empréstimo
-        const formEmprestimo = document.getElementById('formEmprestimo');
-        if (formEmprestimo) {
-            formEmprestimo.addEventListener('submit', salvarEmprestimo);
-        }
-    }
+    // ... resto do seu código
 });
 
-// --- FUNÇÕES DE RENDERIZAÇÃO ---
+// --- MODIFICAÇÃO NA FUNÇÃO DE CARACTERÍSTICAS GLOBAIS ---
 
-function atualizarDashboardReal() {
-    const container = document.getElementById('recent-books-container');
-    if (!container) return;
-
-    const livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
+function initGlobalFeatures() {
+    // Lógica do Tema (Dark/Light)
+    const temaSalvo = localStorage.getItem('theme');
+    const themeToggle = document.getElementById('theme-toggle');
     
-    // Pega os 4 mais recentes
-    const ultimos = [...livros].reverse().slice(0, 4);
-    
-    if (ultimos.length === 0) {
-        container.innerHTML = "<p>Nenhum livro cadastrado.</p>";
-        return;
+    if (temaSalvo === 'dark') document.body.classList.add('dark');
+    if (themeToggle) {
+        themeToggle.innerText = temaSalvo === 'dark' ? '☀️' : '🌙';
+        themeToggle.onclick = () => {
+            const isDark = document.body.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            themeToggle.innerText = isDark ? '☀️' : '🌙';
+        };
     }
 
-    container.innerHTML = ultimos.map(l => `
-        <div class="book-card" style="opacity:1; transform:none;" onclick="window.location.href='books.html'">
-            <img src="${l.capa || '../img/user.png'}" onerror="this.src='../img/user.png'">
-            <h4>${l.nome}</h4>
-            <p>${l.autor}</p>
-            <p class="${l.status === 'Disponível' ? 'status-livre' : 'status-alugado'}">${l.status}</p>
-        </div>
-    `).join('');
-}
+    // Dropdown do Perfil
+    const profileBtn = document.getElementById('profileBtn');
+    const dropdown = document.getElementById('dropdown');
+    if (profileBtn && dropdown) {
+        profileBtn.onclick = (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+        };
+    }
 
-function renderizarComoTabela() {
-    const corpo = document.getElementById('tabelaLivrosCorpo');
-    const livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
-    if (!corpo) return;
-
-    corpo.innerHTML = "";
-    livros.forEach(l => {
-        corpo.innerHTML += `
-            <tr onclick="abrirModalDetalhes(${l.id})" style="cursor:pointer">
-                <td><img src="${l.capa}" style="width:40px; border-radius:4px;"></td>
-                <td><strong>${l.nome}</strong></td>
-                <td>${l.autor}</td>
-                <td>${l.usuarioAluguel || '-'}</td>
-                <td><span class="${l.status === 'Disponível' ? 'status-livre' : 'status-alugado'}">${l.status}</span></td>
-                <td>${l.dataDevolucao || '-'}</td>
-                <td>
-                    <button class="btn edit" onclick="event.stopPropagation(); abrirModalEmprestimo(${l.id})">Alugar</button>
-                    <button class="btn delete" onclick="event.stopPropagation(); excluirLivro(${l.id})">Excluir</button>
-                </td>
-            </tr>
-        `;
+    // Fechar dropdown ao clicar fora
+    document.addEventListener('click', () => {
+        if (dropdown) dropdown.classList.remove('show');
     });
 }
 
-// --- MODAIS ---
+// ... as outras funções (carregarDadosDoFirebase, etc) continuam iguais ...
 
-function abrirModalDetalhes(id) {
-    const livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
-    const livro = livros.find(l => l.id === id);
-    if (!livro) return;
+// --- CARREGAMENTO DE DADOS ---
 
-    document.getElementById('detalheCapa').src = livro.capa;
-    document.getElementById('detalheTitulo').innerText = livro.nome;
-    document.getElementById('detalheAutor').innerText = livro.autor;
-    document.getElementById('detalheSinopse').innerText = livro.sinopse || "Sem descrição disponível.";
+async function carregarDadosDoFirebase() {
+    const corpoTabela = document.getElementById('tabelaLivrosCorpo');
+    const containerCards = document.getElementById('container-cards-livros');
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "livros"));
+        todosOsLivros = [];
+        if (corpoTabela) corpoTabela.innerHTML = "";
+        if (containerCards) containerCards.innerHTML = "";
+
+        querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const id = docSnap.id;
+            todosOsLivros.push({ id, ...data });
+
+            tipoUsuario === 'admin' ? renderizarLinhaTabela(id, data) : renderizarCardUsuario(id, data);
+        });
+    } catch (error) { console.error("Erro:", error); }
+}
+
+// --- RENDERIZAÇÃO ---
+
+function renderizarLinhaTabela(id, l) {
+    const corpo = document.getElementById('tabelaLivrosCorpo');
+    const btnAcao = l.status === 'Disponível' 
+        ? `<button class="btn edit" onclick="abrirModalEmprestimo('${id}')">Alugar</button>`
+        : `<button class="btn return" style="background:#28a745;color:white" onclick="devolverLivro('${id}')">Devolver</button>`;
+
+    corpo.innerHTML += `
+        <tr>
+            <td><img src="${l.capa || '../img/default-book.png'}" style="width:40px;border-radius:4px"></td>
+            <td><strong>${l.titulo || l.nome}</strong></td>
+            <td>${l.autor}</td>
+            <td><span class="${l.status === 'Disponível' ? 'status-livre' : 'status-alugado'}">${l.status}</span></td>
+            <td>
+                ${btnAcao}
+                <button class="btn delete" onclick="excluirLivro('${id}')">Excluir</button>
+            </td>
+        </tr>`;
+}
+
+function renderizarCardUsuario(id, l) {
+    const container = document.getElementById('container-cards-livros');
+    container.innerHTML += `
+        <div class="book-card-v2" onclick="abrirModalDetalhes('${id}')">
+            <img src="${l.capa || '../img/default-book.png'}">
+            <div class="book-info-v2">
+                <h4>${l.titulo || l.nome}</h4>
+                <p>${l.autor}</p>
+                <span class="${l.status === 'Disponível' ? 'status-livre' : 'status-alugado'}">${l.status}</span>
+            </div>
+        </div>`;
+}
+
+// --- LÓGICA DE EMPRÉSTIMO (MODAL) ---
+
+function configurarEventosModais() {
+    const inputCPF = document.getElementById('inputUsuarioBusca');
+    if (inputCPF) inputCPF.addEventListener('input', buscarUsuarioPorCPF);
+
+    const formEmp = document.getElementById('formEmprestimo');
+    if (formEmp) formEmp.addEventListener('submit', confirmarAluguel);
+}
+
+async function buscarUsuarioPorCPF() {
+    const cpfBusca = document.getElementById('inputUsuarioBusca').value.trim();
+    const painel = document.getElementById('detalhesUsuario');
+    const btnConfirmar = document.getElementById('btnConfirmarEmprestimo');
+
+    if (cpfBusca.length < 11) {
+        painel.style.display = 'none';
+        btnConfirmar.disabled = true;
+        return;
+    }
+
+    try {
+        // Busca usuário na coleção "usuarios" do Firebase por CPF
+        const q = query(collection(db, "usuarios"), where("cpf", "==", cpfBusca));
+        const snap = await getDocs(q);
+
+        if (!snap.empty) {
+            const u = snap.docs[0].data();
+            document.getElementById('info-nome').innerText = u.nome;
+            document.getElementById('info-email').innerText = u.email;
+            document.getElementById('info-matricula').innerText = u.matricula || "-";
+            painel.style.display = 'block';
+            btnConfirmar.disabled = false;
+        } else {
+            painel.style.display = 'none';
+            btnConfirmar.disabled = true;
+        }
+    } catch (e) { console.error(e); }
+}
+
+async function confirmarAluguel(e) {
+    e.preventDefault();
+    const idLivro = document.getElementById('idLivroModal').value;
+    const nomeUser = document.getElementById('info-nome').innerText;
+    const dataDev = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR');
+
+    try {
+        await updateDoc(doc(db, "livros", idLivro), {
+            status: "Alugado",
+            usuarioAluguel: nomeUser,
+            dataDevolucao: dataDev
+        });
+        alert("Empréstimo realizado!");
+        fecharModal();
+        carregarDadosDoFirebase();
+    } catch (e) { alert("Erro ao alugar."); }
+}
+
+// --- FUNÇÕES GLOBAIS (WINDOW) ---
+
+window.abrirModalEmprestimo = (id) => {
+    const l = todosOsLivros.find(b => b.id === id);
+    document.getElementById('idLivroModal').value = id;
+    document.getElementById('nomeLivroModal').innerText = "Livro: " + (l.titulo || l.nome);
+    document.getElementById('modalEmprestimo').style.display = 'flex';
+};
+
+window.fecharModal = () => {
+    document.getElementById('modalEmprestimo').style.display = 'none';
+    document.getElementById('formEmprestimo').reset();
+    document.getElementById('detalhesUsuario').style.display = 'none';
+};
+
+window.abrirModalDetalhes = (id) => {
+    const l = todosOsLivros.find(b => b.id === id);
+    if (!l) return;
+
+    document.getElementById('detalheCapa').src = l.capa || '../img/default-book.png';
+    document.getElementById('detalheTitulo').innerText = l.titulo || l.nome;
+    document.getElementById('detalheAutor').innerText = l.autor;
+    document.getElementById('detalheSinopse').innerText = l.sinopse || "Sem descrição.";
     
     const statusEl = document.getElementById('detalheStatus');
-    statusEl.innerText = livro.status;
-    statusEl.className = livro.status === 'Disponível' ? 'status-livre' : 'status-alugado';
+    statusEl.innerText = l.status;
+    statusEl.className = l.status === 'Disponível' ? 'status-livre' : 'status-alugado';
 
     const btnPDF = document.getElementById('btnBaixarPDF');
-    // Verificação rigorosa do PDF
-    if (livro.pdfUrl && livro.pdfUrl.length > 100) { 
-        btnPDF.href = livro.pdfUrl;
+    if (l.pdfUrl) {
+        btnPDF.href = l.pdfUrl;
         btnPDF.style.display = 'flex';
-        btnPDF.download = `${livro.nome}.pdf`;
     } else {
         btnPDF.style.display = 'none';
     }
 
     document.getElementById('modalDetalhesLivro').style.display = 'flex';
-}
+};
 
-function fecharModalDetalhes() {
+window.fecharModalDetalhes = () => {
     document.getElementById('modalDetalhesLivro').style.display = 'none';
-}
+};
 
-function abrirModalEmprestimo(id) {
-    const livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
-    const livro = livros.find(l => l.id === id);
-    if(!livro) return;
+window.devolverLivro = async (id) => {
+    if (!confirm("Confirmar devolução?")) return;
+    await updateDoc(doc(db, "livros", id), {
+        status: "Disponível", usuarioAluguel: "", dataDevolucao: ""
+    });
+    carregarDadosDoFirebase();
+};
 
-    document.getElementById('idLivroModal').value = id;
-    document.getElementById('nomeLivroModal').innerText = "Livro: " + livro.nome;
-    document.getElementById('modalEmprestimo').style.display = 'flex';
-}
+window.excluirLivro = async (id) => {
+    if (!confirm("Excluir livro permanentemente?")) return;
+    await deleteDoc(doc(db, "livros", id));
+    carregarDadosDoFirebase();
+};
 
-function fecharModal() { 
-    document.getElementById('modalEmprestimo').style.display = 'none'; 
-    document.getElementById('detalhesUsuario').style.display = 'none';
-    document.getElementById('formEmprestimo').reset();
-}
+// --- UTILITÁRIOS ---
 
-// --- LÓGICA DE NEGÓCIO ---
+function configurarLayoutPorCargo() {
+    const areaAdmin = document.getElementById('area-admin-tabela');
+    const containerCards = document.getElementById('container-cards-livros');
+    const btnAdd = document.getElementById('btn-admin-add');
 
-function buscarUsuarioPorCPF() {
-    const cpf = document.getElementById('inputUsuarioBusca').value;
-    const usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
-    const user = usuarios.find(u => u.cpf === cpf);
-    const painel = document.getElementById('detalhesUsuario');
-    
-    if (user) {
-        document.getElementById('info-nome').innerText = user.nome;
-        document.getElementById('info-email').innerText = user.email;
-        painel.style.display = 'block';
-        document.getElementById('btnConfirmarEmprestimo').disabled = false;
+    if (tipoUsuario === 'admin') {
+        if(areaAdmin) areaAdmin.style.display = 'block';
+        if(containerCards) containerCards.style.display = 'none';
+        if(btnAdd) btnAdd.style.display = 'block';
     } else {
-        painel.style.display = 'none';
-        document.getElementById('btnConfirmarEmprestimo').disabled = true;
+        if(areaAdmin) areaAdmin.style.display = 'none';
+        if(containerCards) containerCards.style.display = 'grid';
+        if(btnAdd) btnAdd.style.display = 'none';
     }
-}
-
-function salvarEmprestimo(e) {
-    e.preventDefault();
-    const id = parseInt(document.getElementById('idLivroModal').value);
-    const nomeUser = document.getElementById('info-nome').innerText;
-    let livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
-    const idx = livros.findIndex(l => l.id === id);
-
-    if (idx !== -1) {
-        livros[idx].status = "Alugado";
-        livros[idx].usuarioAluguel = nomeUser;
-        livros[idx].dataDevolucao = new Date(Date.now() + 12096e5).toLocaleDateString('pt-BR'); 
-        localStorage.setItem('biblioteca_livros', JSON.stringify(livros));
-        fecharModal();
-        renderizarComoTabela();
-    }
-}
-
-function excluirLivro(id) {
-    if (!confirm("Tem certeza que deseja excluir este livro?")) return;
-    let livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
-    livros = livros.filter(l => l.id !== id);
-    localStorage.setItem('biblioteca_livros', JSON.stringify(livros));
-    renderizarComoTabela();
 }
 
 function initGlobalFeatures() {
-    // Tema
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) {
         themeToggle.onclick = () => {
             const isDark = document.body.classList.toggle('dark');
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            themeToggle.innerText = isDark ? "☀️" : "🌙";
         };
     }
     if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
 
-    // Sidebar
-    const menuToggle = document.getElementById('menu-toggle');
-    if (menuToggle) {
-        menuToggle.onclick = () => document.getElementById('sidebar').classList.toggle('closed');
-    }
-    
-    // Dropdown Perfil
     const profileBtn = document.getElementById('profileBtn');
-    const dropdown = document.getElementById('dropdown');
-    if (profileBtn && dropdown) {
-        profileBtn.onclick = (e) => { 
-            e.stopPropagation(); 
-            dropdown.classList.toggle('show'); 
+    if (profileBtn) {
+        profileBtn.onclick = (e) => {
+            e.stopPropagation();
+            document.getElementById('dropdown').classList.toggle('show');
         };
-        document.onclick = () => dropdown.classList.remove('show');
     }
+    document.onclick = () => document.getElementById('dropdown')?.classList.remove('show');
 }
 
 function setupFiltros() {
     const busca = document.getElementById('inputBusca');
-    const filtro = document.getElementById('filtroStatus');
-    if (!busca || !filtro) return;
+    const filtroStatus = document.getElementById('filtroStatus');
 
-    const filtrar = () => {
+    const aplicarFiltro = () => {
         const termo = busca.value.toLowerCase();
-        const status = filtro.value;
-        const linhas = document.querySelectorAll('#tabelaLivrosCorpo tr');
-        
-        linhas.forEach(linha => {
-            const texto = linha.innerText.toLowerCase();
+        const status = filtroStatus.value;
+
+        document.querySelectorAll('tr, .book-card-v2').forEach(el => {
+            const texto = el.innerText.toLowerCase();
             const bateBusca = texto.includes(termo);
             const bateStatus = status === "Todos" || texto.includes(status.toLowerCase());
-            linha.style.display = (bateBusca && bateStatus) ? "" : "none";
+            el.style.display = (bateBusca && bateStatus) ? "" : "none";
         });
     };
 
-    busca.addEventListener('keyup', filtrar);
-    filtro.addEventListener('change', filtrar);
+    busca?.addEventListener('input', aplicarFiltro);
+    filtroStatus?.addEventListener('change', aplicarFiltro);
 }

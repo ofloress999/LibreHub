@@ -1,11 +1,18 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db } from './firebase.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { 
+    doc, 
+    getDoc, 
+    getDocs, 
+    collection, 
+    deleteDoc 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// --- PROTEÇÃO DE ROTA (ADMIN APENAS) ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-        if (userDoc.data().role !== "admin") {
+        if (!userDoc.exists() || userDoc.data().role !== "admin") {
             alert("Acesso negado!");
             window.location.href = "dashboard.html";
         }
@@ -14,283 +21,138 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+// --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Inicializa a tabela com os usuários que se cadastraram no site
-    renderizarUsuarios();
+    window.renderizarUsuarios(); // Carrega a lista inicial
+    carregarGruposNoSelect();
     
-    // Configura a busca em tempo real na aba de lista (opcional, mas ajuda muito)
     const buscaLista = document.getElementById('inputBuscaUserLista');
     if (buscaLista) {
-        buscaLista.addEventListener('input', () => renderizarUsuarios(buscaLista.value));
+        buscaLista.addEventListener('input', () => window.renderizarUsuarios(buscaLista.value));
     }
 });
 
-// --- FUNÇÕES DE NAVEGAÇÃO ---
+// --- FUNÇÕES DE NAVEGAÇÃO (CORRIGIDO PARA MÓDULOS) ---
+window.mudarAba = function(idAba) {
+    // 1. Esconde todos os conteúdos e remove active dos botões
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
 
-function mudarAba(idAba) {
-    // Esconde todos os conteúdos
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
-    // Remove active de todos os botões
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-
-    // Ativa a aba correta
-    document.getElementById(idAba).classList.add('active');
-    
-    // Se o evento vier de um clique, marca o botão como active
-    if (event && event.currentTarget && event.currentTarget.classList.contains('tab-btn')) {
-        event.currentTarget.classList.add('active');
-    } else {
-        // Caso a mudança seja via código, procura o botão correspondente
-        const botoes = document.querySelectorAll('.tab-btn');
-        if (idAba === 'tab-lista') botoes[0].classList.add('active');
-        if (idAba === 'tab-cadastro') botoes[1].classList.add('active');
-        if (idAba === 'tab-pesquisa') botoes[2].classList.add('active');
+    // 2. Mostra a aba clicada
+    const abaAlvo = document.getElementById(idAba);
+    if (abaAlvo) {
+        abaAlvo.classList.add('active');
     }
-}
+    
+    // 3. Destaca o botão clicado
+    const btnAtivo = document.querySelector(`button[onclick*="${idAba}"]`);
+    if (btnAtivo) {
+        btnAtivo.classList.add('active');
+    }
 
-// --- FUNÇÕES DE RENDERIZAÇÃO ---
+    // 4. Se mudar para a lista, atualiza os dados do Firebase
+    if (idAba === 'tab-lista') {
+        window.renderizarUsuarios();
+    }
+};
 
-function renderizarUsuarios(filtro = "") {
+// --- RENDERIZAÇÃO DE USUÁRIOS (FIREBASE) ---
+window.renderizarUsuarios = async function(filtro = "") {
     const tabela = document.getElementById('listaUsuariosTabela');
     if (!tabela) return;
 
-    // Pega os usuários que vieram do cadastro do site
-    const usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
-    const livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
+    try {
+        const querySnapshot = await getDocs(collection(db, "usuarios"));
+        const usuarios = [];
+        querySnapshot.forEach(doc => {
+            usuarios.push({ id: doc.id, ...doc.data() });
+        });
 
-    // Filtra se o admin estiver digitando na busca
-    const usuariosFiltrados = usuarios.filter(u => 
-        u.nome.toLowerCase().includes(filtro.toLowerCase()) || 
-        u.cpf.includes(filtro)
-    );
+        const usuariosFiltrados = usuarios.filter(u => 
+            (u.nome && u.nome.toLowerCase().includes(filtro.toLowerCase())) || 
+            (u.cpf && u.cpf.includes(filtro)) ||
+            (u.email && u.email.toLowerCase().includes(filtro.toLowerCase()))
+        );
 
-    if (usuariosFiltrados.length === 0) {
-        tabela.innerHTML = `<tr><td colspan="5" style="text-align:center;">Nenhum usuário encontrado.</td></tr>`;
-        return;
+        tabela.innerHTML = "";
+        if (usuariosFiltrados.length === 0) {
+            tabela.innerHTML = `<tr><td colspan="5" style="text-align:center;">Nenhum usuário encontrado.</td></tr>`;
+            return;
+        }
+
+        tabela.innerHTML = usuariosFiltrados.map(u => {
+            return `
+                <tr>
+                    <td><strong>${u.nome || 'Sem Nome'}</strong></td>
+                    <td>${u.cpf || '---'}</td>
+                    <td>${u.email}</td>
+                    <td><span class="status-livre">${u.role || 'user'}</span></td>
+                    <td>
+                        <button class="btn edit" onclick="verDetalhes('${u.id}')">Ver Ficha</button>
+                        <button class="btn delete" onclick="excluirUsuarioFirestore('${u.id}')">Remover</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error("Erro Firebase:", error);
+        tabela.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">Erro ao carregar dados. Verifique as permissões.</td></tr>`;
     }
+};
 
-    tabela.innerHTML = usuariosFiltrados.map(u => {
-        // Verifica se este usuário específico tem algum livro alugado
-        const livroAtivo = livros.find(l => l.usuarioAluguel === u.nome);
-        const statusHTML = livroAtivo 
-            ? `<span class="status-alugado">Com Livro</span>` 
-            : `<span class="status-livre">Sem Pendências</span>`;
+// --- FICHA DETALHADA ---
+window.verDetalhes = async function(userId) {
+    try {
+        const userDoc = await getDoc(doc(db, "usuarios", userId));
+        if (!userDoc.exists()) return;
+        const user = userDoc.data();
 
-        return `
-            <tr>
-                <td><strong>${u.nome}</strong></td>
-                <td>${u.cpf}</td>
-                <td>${u.email}</td>
-                <td>${statusHTML}</td>
-                <td>
-                    <button class="btn edit" onclick="verDetalhes('${u.cpf}')">Ver Ficha</button>
-                    <button class="btn delete" onclick="excluirUsuario('${u.cpf}')">Remover</button>
-                </td>
-            </tr>
-        `;
-    }).join('');
-}
+        document.getElementById('fichaNome').innerText = user.nome || "---";
+        document.getElementById('fichaCPF').innerText = user.cpf || "---";
+        document.getElementById('fichaEmail').innerText = user.email || "---";
+        document.getElementById('fichaTel').innerText = user.telefone || "Não informado";
+        document.getElementById('fichaGrupo').innerText = user.grupo || "Geral";
 
-// --- BUSCA E DETALHES ---
+        // Histórico (se houver no Firestore)
+        const containerHist = document.getElementById('fichaHistoricoLista');
+        containerHist.innerHTML = (user.historico && user.historico.length > 0) 
+            ? user.historico.map(h => `<div class="history-item">✔️ ${h}</div>`).join('')
+            : "<p>Sem histórico.</p>";
 
-function buscarDetalhesUsuario() {
-    const termo = document.getElementById('inputBuscaUserAdmin').value.toLowerCase();
-    const usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
-    
-    // Tenta achar por CPF exato ou Nome parcial
-    const user = usuarios.find(u => u.cpf === termo || u.nome.toLowerCase().includes(termo));
-
-    if (user) {
-        exibirFichaUsuario(user);
-    } else {
-        alert("Usuário não encontrado. Verifique o CPF ou Nome.");
+        document.getElementById('modalFichaUsuario').style.display = 'flex';
+    } catch (e) {
+        alert("Erro ao abrir ficha.");
     }
-}
+};
 
-// Função chamada pelo botão "Ver Ficha" na tabela
-// --- FUNÇÃO VER DETALHES (CORRIGIDA) ---
-// --- FUNÇÃO VER DETALHES (CORRIGIDA) ---
-function verDetalhes(cpf) {
-    // Convertemos para String e removemos espaços para evitar erro de busca
-    const cpfBusca = String(cpf).trim();
-    
-    const usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
-    const livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
-    
-    // Busca exata: garantimos que ambos são strings antes de comparar
-    const user = usuarios.find(u => String(u.cpf).trim() === cpfBusca);
-
-    if (!user) {
-        console.error("CPF buscado:", cpfBusca);
-        console.log("Lista de usuários no banco:", usuarios);
-        alert("Erro: Usuário não encontrado no banco de dados.");
-        return;
+// --- EXCLUSÃO NO FIREBASE ---
+window.excluirUsuarioFirestore = async function(docId) {
+    if (!confirm("Remover permanentemente este usuário do banco de dados?")) return;
+    try {
+        await deleteDoc(doc(db, "usuarios", docId));
+        alert("Removido com sucesso!");
+        window.renderizarUsuarios();
+    } catch (error) {
+        alert("Erro ao excluir.");
     }
-
-    // Preencher o Modal (mesmo código anterior)
-    document.getElementById('fichaNome').innerText = user.nome;
-    document.getElementById('fichaCPF').innerText = user.cpf;
-    document.getElementById('fichaEmail').innerText = user.email;
-    document.getElementById('fichaTel').innerText = user.telefone || "Não informado";
-    document.getElementById('fichaGrupo').innerText = user.grupo || "Geral";
-
-    // Lógica do Livro Atual
-    const livroAtual = livros.find(l => l.usuarioAluguel === user.nome);
-    const containerLivro = document.getElementById('fichaLivroConteudo');
-    
-    if (livroAtual) {
-        containerLivro.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <p><strong>Livro:</strong> ${livroAtual.nome}</p>
-                    <p><strong>Devolução:</strong> <span style="color:red">${livroAtual.dataDevolucao}</span></p>
-                </div>
-                <button class="btn delete" onclick="devolverLivroFicha(${livroAtual.id}, '${user.cpf}')">Devolver</button>
-            </div>`;
-    } else {
-        containerLivro.innerHTML = "<p>Nenhum empréstimo ativo.</p>";
-    }
-
-    // Histórico
-    const containerHist = document.getElementById('fichaHistoricoLista');
-    containerHist.innerHTML = (user.historico && user.historico.length > 0) 
-        ? user.historico.map(h => `<div class="history-item">✔️ ${h}</div>`).join('')
-        : "<p>Sem histórico.</p>";
-
-    document.getElementById('modalFichaUsuario').style.display = 'flex';
-}
-
-// --- FUNÇÃO EXCLUIR (CORRIGIDA) ---
-function excluirUsuario(cpf) {
-    const cpfExcluir = String(cpf).trim();
-    
-    if (!confirm(`Tem certeza que deseja excluir o usuário com CPF ${cpfExcluir}?`)) return;
-
-    let usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
-    
-    // Filtramos removendo o CPF correspondente
-    const novaLista = usuarios.filter(u => String(u.cpf).trim() !== cpfExcluir);
-
-    if (usuarios.length === novaLista.length) {
-        alert("Erro ao excluir: Usuário não localizado.");
-        return;
-    }
-
-    localStorage.setItem('usuarios', JSON.stringify(novaLista));
-    alert("Usuário removido com sucesso.");
-    
-    // Recarrega a tabela para refletir a mudança
-    renderizarUsuarios();
-}
-
-function fecharModalFicha() {
-    document.getElementById('modalFichaUsuario').style.display = 'none';
-}
-
-// Função para devolver o livro diretamente pela ficha
-function devolverLivroFicha(livroId, cpfUsuario) {
-    if (!confirm("Confirmar devolução deste livro?")) return;
-    
-    // Chama a função de devolução que já criamos
-    devolverLivroAdmin(livroId);
-    
-    // Pequeno atraso para atualizar os dados no modal após a devolução
-    setTimeout(() => {
-        verDetalhes(cpfUsuario); // Recarrega a ficha atualizada
-    }, 100);
-}
-
-// Fechar modal ao clicar fora dele
-window.onclick = function(event) {
-    const modal = document.getElementById('modalFichaUsuario');
-    if (event.target == modal) {
-        fecharModalFicha();
-    }
-}
-
-function exibirFichaUsuario(user) {
-    const livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
-    
-    document.getElementById('painelDetalhesUsuario').style.display = 'block';
-    
-    // Preenche Dados
-    document.getElementById('detNome').innerText = user.nome;
-    document.getElementById('detCPF').innerText = user.cpf;
-    document.getElementById('detEmail').innerText = user.email;
-    document.getElementById('detGrupo').innerText = user.grupo || "Geral";
-
-    // Livro Atual
-    const livroAtual = livros.find(l => l.usuarioAluguel === user.nome);
-    const containerAtivo = document.getElementById('aluguelAtivoContainer');
-    
-    if (livroAtual) {
-        containerAtivo.innerHTML = `
-            <div style="background: var(--bg-main); padding: 15px; border-radius: 8px;">
-                <p><strong>Livro:</strong> ${livroAtual.nome}</p>
-                <p><strong>Devolução:</strong> <span style="color: #e74c3c; font-weight:bold;">${livroAtual.dataDevolucao}</span></p>
-                <button class="btn delete" style="margin-top:10px; width:100%" onclick="devolverLivroAdmin(${livroAtual.id})">Registrar Devolução</button>
-            </div>
-        `;
-    } else {
-        containerAtivo.innerHTML = "<p>Nenhum empréstimo ativo.</p>";
-    }
-
-    // Histórico
-    const histContainer = document.getElementById('historicoContainer');
-    if (user.historico && user.historico.length > 0) {
-        histContainer.innerHTML = user.historico.map(h => `<div class="history-item">✔️ ${h}</div>`).join('');
-    } else {
-        histContainer.innerHTML = "<p>Este usuário ainda não devolveu livros.</p>";
-    }
-}
+};
 
 // --- UTILITÁRIOS ---
+window.fecharModalFicha = function() {
+    document.getElementById('modalFichaUsuario').style.display = 'none';
+};
 
 function carregarGruposNoSelect() {
     const select = document.getElementById('regGrupo');
     if (!select) return;
     const grupos = JSON.parse(localStorage.getItem('biblioteca_grupos')) || ["Aluno", "Professor", "Funcionário", "Externo"];
-    
-    select.innerHTML = grupos.map(g => {
-        const nome = typeof g === 'string' ? g : g.nome;
-        return `<option value="${nome}">${nome}</option>`;
-    }).join('');
+    select.innerHTML = grupos.map(g => `<option value="${g}">${g}</option>`).join('');
 }
 
-function excluirUsuario(cpf) {
-    if (!confirm("Deseja realmente remover este usuário?")) return;
-    let usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
-    usuarios = usuarios.filter(u => u.cpf !== cpf);
-    localStorage.setItem('usuarios', JSON.stringify(usuarios));
-    renderizarUsuarios();
-}
-
-function devolverLivroAdmin(id) {
-    // Reutiliza a lógica de devolução que já discutimos antes
-    let livros = JSON.parse(localStorage.getItem('biblioteca_livros')) || [];
-    let usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
-    
-    const livro = livros.find(l => l.id === id);
-    if (!livro) return;
-
-    const user = usuarios.find(u => u.nome === livro.usuarioAluguel);
-    if (user) {
-        if (!user.historico) user.historico = [];
-        user.historico.push(`${livro.nome} (Devolvido em ${new Date().toLocaleDateString()})`);
+// Fechar modal ao clicar fora
+window.onclick = function(event) {
+    const modal = document.getElementById('modalFichaUsuario');
+    if (event.target == modal) {
+        window.fecharModalFicha();
     }
-
-    livro.status = "Disponível";
-    livro.usuarioAluguel = null;
-    livro.dataDevolucao = null;
-
-    localStorage.setItem('biblioteca_livros', JSON.stringify(livros));
-    localStorage.setItem('usuarios', JSON.stringify(usuarios));
-    
-    alert("Devolução concluída!");
-    renderizarUsuarios();
-    buscarDetalhesUsuario(); // Atualiza a ficha na tela
-}
+};

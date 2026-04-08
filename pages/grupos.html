@@ -29,11 +29,15 @@
         <div class="main">
             <!-- Header Replicado -->
             <header class="header">
-                <h1>Grupos de Leitura</h1>
+                <h1>Meu Perfil</h1>
                 <div class="header-right">
                     <div class="theme-toggle" id="theme-toggle">🌙</div>
                     <div class="profile">
                         <img src="../img/user.png" id="profileBtn">
+                        <div class="dropdown" id="dropdown">
+                            <a href="perfil.html">Perfil</a>
+                            <a href="../index.html" id="logoutBtn">Logout</a>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -92,5 +96,6 @@
 
     <!-- Importante: type="module" para usar imports do Firebase -->
     <script type="module" src="../js/grupos.js"></script>
+    <script type="module" src="../js/dashboard.js"></script>
 </body>
 </html>

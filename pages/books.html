@@ -23,7 +23,7 @@
                 <a href="dashboard.html"><p>Dashboard</p></a>
                 <a href="books.html"><p>Livros</p></a>
                 <a href="grupos.html"><p>Grupos</p></a>
-                <a href="perfil"><p>Perfil</p></a>
+                <a href="perfil.html"><p>Perfil</p></a>
                 <a href="admin.html"><p>Admin</p></a>
             </nav>
         </aside>
@@ -39,8 +39,8 @@
                     <div class="profile">
                         <img src="../img/user.png" id="profileBtn">
                         <div class="dropdown" id="dropdown">
-                            <a href="#">Perfil</a>
-                            <a href="#">Logout</a>
+                            <a href="perfil.html">Perfil</a>
+                            <a href="../index.html">Logout</a>
                         </div>
                     </div>
                 </div>
@@ -139,7 +139,7 @@
                 <p id="detalheSinopse" style="line-height: 1.6; color: var(--text-color); margin-top: 10px; text-align: justify;"></p>
             </div>
 
-            <div class="modal-buttons" style="margin-top: 30px; display: flex; justify-content:空间-between; gap: 10px;">
+            <div class="modal-buttons" style="margin-top: 30px; display: flex; justify-content:space-between; gap: 10px;">
                 <button type="button" class="btn delete" onclick="fecharModalDetalhes()" style="background: #666;">Fechar</button>
                 <a id="btnBaixarPDF" href="#" target="_blank" class="btn-save" style="text-decoration: none; display: flex; align-items: center; justify-content: center; flex: 1;">
                     📥 Baixar PDF para Ler
@@ -148,8 +148,8 @@
         </div>
     </div>
 
-    <script src="../js/li"></script>
-    <script src="../js/dashboard.js"></script>
+    <script type="module" src="../js/livros.js"></script>
+    <script type="module" src="../js/dashboard.js"></script>
 </body>
 
 </html>

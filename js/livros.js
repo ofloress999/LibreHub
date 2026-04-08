@@ -1,18 +1,44 @@
-import { db } from './firebase-config.js';
-import { collection, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { db } from './firebase.js';
+import { 
+    collection, 
+    getDocs, 
+    deleteDoc, 
+    doc, 
+    query, 
+    where, 
+    updateDoc 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // --- VARIÁVEIS GLOBAIS ---
 let todosOsLivros = [];
-const tipoUsuario = localStorage.getItem('tipoUsuario'); // 'admin' ou 'comum'
+// AJUSTE: O .trim() remove espaços vazios e o || "" evita erros se estiver nulo
+const tipoUsuario = (localStorage.getItem('tipoUsuario') || "").trim(); 
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Inicializa a interface
+    console.log("Sistema iniciado. Cargo detectado:", tipoUsuario);
+
+    // 1. Inicializa a interface (Mostra/Esconde botões de Admin)
     configurarLayoutPorCargo();
+    
+    // 2. Carrega os dados do Firebase
     carregarDadosDoFirebase();
+    
+    // 3. Configura os filtros de busca
     setupFiltros();
+
+    // --- EVENTOS DE INTERAÇÃO ---
+    const inputCPF = document.getElementById('inputUsuarioBusca');
+    if (inputCPF) {
+        inputCPF.addEventListener('input', buscarUsuarioPorCPF);
+    }
+
+    const formEmprestimo = document.getElementById('formEmprestimo');
+    if (formEmprestimo) {
+        formEmprestimo.addEventListener('submit', salvarEmprestimoNoFirebase);
+    }
 });
 
-// 1. Configura o que aparece na tela baseado no Cargo (Admin ou Usuário)
+// 1. Configura o que aparece na tela baseado no Cargo
 function configurarLayoutPorCargo() {
     const btnAdd = document.querySelector('.btn-add');
     const tabelaAdmin = document.querySelector('.table-container');
@@ -32,7 +58,7 @@ function configurarLayoutPorCargo() {
     }
 }
 
-// 2. Busca os dados no Firebase e decide como renderizar
+// 2. Busca os dados no Firebase
 async function carregarDadosDoFirebase() {
     const corpoTabela = document.getElementById('tabelaLivrosCorpo');
     const containerCards = document.getElementById('container-cards-livros');
@@ -64,7 +90,12 @@ async function carregarDadosDoFirebase() {
 function renderizarLinhaTabela(id, l) {
     const corpoTabela = document.getElementById('tabelaLivrosCorpo');
     if (!corpoTabela) return;
-    
+
+    // Decide se mostra botão de "Alugar" ou "Devolver"
+    const botaoAcao = l.status === 'Disponível' 
+        ? `<button class="btn edit" onclick="abrirModalEmprestimo('${id}')">Alugar</button>`
+        : `<button class="btn return" style="background-color: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;" onclick="devolverLivro('${id}')">Devolver</button>`;
+
     corpoTabela.innerHTML += `
         <tr>
             <td><img src="${l.capa || '../img/default-book.png'}" style="width:40px; border-radius:4px;"></td>
@@ -74,7 +105,7 @@ function renderizarLinhaTabela(id, l) {
             <td><span class="${l.status === 'Disponível' ? 'status-livre' : 'status-alugado'}">${l.status}</span></td>
             <td>${l.dataDevolucao || '-'}</td>
             <td>
-                <button class="btn edit" onclick="abrirModalEmprestimo('${id}')">Alugar</button>
+                ${botaoAcao}
                 <button class="btn delete" onclick="excluirLivro('${id}')">Excluir</button>
             </td>
         </tr>
@@ -101,7 +132,105 @@ function renderizarCardUsuario(id, l) {
     `;
 }
 
-// 5. Modal Detalhado (Usado ao clicar no Card)
+// --- FUNÇÕES DE LÓGICA DE EMPRÉSTIMO ---
+
+async function buscarUsuarioPorCPF() {
+    const cpf = document.getElementById('inputUsuarioBusca').value;
+    const painel = document.getElementById('detalhesUsuario');
+    const btnConfirmar = document.getElementById('btnConfirmarEmprestimo');
+
+    if (cpf.length < 11) {
+        painel.style.display = 'none';
+        btnConfirmar.disabled = true;
+        return;
+    }
+
+    try {
+        const q = query(collection(db, "usuarios"), where("cpf", "==", cpf));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            const user = querySnapshot.docs[0].data();
+            document.getElementById('info-nome').innerText = user.nome;
+            document.getElementById('info-email').innerText = user.email;
+            
+            painel.style.display = 'block';
+            btnConfirmar.disabled = false;
+        } else {
+            painel.style.display = 'none';
+            btnConfirmar.disabled = true;
+        }
+    } catch (error) {
+        console.error("Erro ao buscar usuário:", error);
+    }
+}
+
+async function salvarEmprestimoNoFirebase(e) {
+    e.preventDefault();
+    
+    const idLivro = document.getElementById('idLivroModal').value;
+    const nomeUsuario = document.getElementById('info-nome').innerText;
+    
+    const hoje = new Date();
+    hoje.setDate(hoje.getDate() + 14);
+    const dataDevolucao = hoje.toLocaleDateString('pt-BR');
+
+    try {
+        const livroRef = doc(db, "livros", idLivro);
+        
+        await updateDoc(livroRef, {
+            status: "Alugado",
+            usuarioAluguel: nomeUsuario,
+            dataDevolucao: dataDevolucao
+        });
+
+        alert("Empréstimo registrado!");
+        fecharModalEmprestimo();
+        carregarDadosDoFirebase();
+        
+    } catch (error) {
+        console.error("Erro:", error);
+        alert("Erro ao processar.");
+    }
+}
+
+// --- DEVOLUÇÃO ---
+
+window.devolverLivro = async (id) => {
+    if (!confirm("Confirmar a devolução deste livro?")) return;
+
+    try {
+        const livroRef = doc(db, "livros", id);
+        await updateDoc(livroRef, {
+            status: "Disponível",
+            usuarioAluguel: "",
+            dataDevolucao: ""
+        });
+
+        alert("Livro devolvido com sucesso!");
+        carregarDadosDoFirebase();
+    } catch (error) {
+        console.error("Erro ao devolver:", error);
+    }
+};
+
+// --- MODAIS E UTILITÁRIOS ---
+
+window.abrirModalEmprestimo = (id) => {
+    const livro = todosOsLivros.find(l => l.id === id);
+    if(!livro) return;
+
+    document.getElementById('idLivroModal').value = id;
+    document.getElementById('nomeLivroModal').innerText = "Livro: " + (livro.titulo || livro.nome);
+    document.getElementById('modalEmprestimo').style.display = 'flex';
+};
+
+window.fecharModalEmprestimo = () => {
+    document.getElementById('modalEmprestimo').style.display = 'none';
+    document.getElementById('formEmprestimo').reset();
+    document.getElementById('detalhesUsuario').style.display = 'none';
+};
+
 window.abrirModalDetalhes = (id) => {
     const livro = todosOsLivros.find(l => l.id === id);
     if (!livro) return;
@@ -111,12 +240,10 @@ window.abrirModalDetalhes = (id) => {
     document.getElementById('detalheAutor').innerText = "Autor: " + livro.autor;
     document.getElementById('detalheSinopse').innerText = livro.sinopse || "Sem sinopse disponível.";
     
-    // Status no Modal
     const statusEl = document.getElementById('detalheStatus');
     statusEl.innerText = livro.status;
     statusEl.className = livro.status === 'Disponível' ? 'status-livre' : 'status-alugado';
 
-    // Suporte ao PDF (se houver)
     const btnPDF = document.getElementById('btnBaixarPDF');
     if (livro.pdfUrl) {
         btnPDF.href = livro.pdfUrl;
@@ -128,9 +255,12 @@ window.abrirModalDetalhes = (id) => {
     document.getElementById('modalDetalhesLivro').style.display = 'flex';
 };
 
-// 6. Excluir Livro (Apenas Admin)
+window.fecharModalDetalhes = () => {
+    document.getElementById('modalDetalhesLivro').style.display = 'none';
+};
+
 window.excluirLivro = async (id) => {
-    if (!confirm("Tem certeza que deseja excluir este livro permanentemente?")) return;
+    if (!confirm("Tem certeza que deseja excluir?")) return;
     try {
         await deleteDoc(doc(db, "livros", id));
         alert("Livro removido!");
@@ -140,7 +270,6 @@ window.excluirLivro = async (id) => {
     }
 };
 
-// 7. Filtros (Busca e Status)
 function setupFiltros() {
     const busca = document.getElementById('inputBusca');
     const filtro = document.getElementById('filtroStatus');
@@ -149,7 +278,6 @@ function setupFiltros() {
         const termo = busca.value.toLowerCase();
         const statusSel = filtro.value;
 
-        // Filtra Linhas da Tabela
         document.querySelectorAll('#tabelaLivrosCorpo tr').forEach(tr => {
             const texto = tr.innerText.toLowerCase();
             const statusText = tr.querySelector('span')?.innerText || "";
@@ -158,7 +286,6 @@ function setupFiltros() {
             tr.style.display = (bateBusca && bateStatus) ? "" : "none";
         });
 
-        // Filtra Cards
         document.querySelectorAll('.book-card-v2').forEach(card => {
             const texto = card.innerText.toLowerCase();
             const statusText = card.querySelector('span')?.innerText || "";
@@ -171,8 +298,3 @@ function setupFiltros() {
     if (busca) busca.addEventListener('input', filtrar);
     if (filtro) filtro.addEventListener('change', filtrar);
 }
-
-// Fechar Modais
-window.fecharModalDetalhes = () => {
-    document.getElementById('modalDetalhesLivro').style.display = 'none';
-};
