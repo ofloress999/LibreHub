@@ -242,8 +242,17 @@ color:white;
 transform:scale(1.05);
 }
 
+#switchToLogin, #switchToRegister {
+    display: none;
+}
 
 @media (max-width: 480px) {
+#switchToLogin, #switchToRegister {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
     /* Estilo para os links de alternância no mobile */
 .toggle-mobile {
     display: none; /* Escondido no Desktop */
@@ -255,6 +264,7 @@ transform:scale(1.05);
 .toggle-mobile span {
     font-weight: bold;
     text-decoration: underline;
+    margin-left: 5px;
 }
 }
 

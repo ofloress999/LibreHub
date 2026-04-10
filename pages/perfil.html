@@ -27,7 +27,7 @@
                 <a href="books.html"><p>Livros</p></a>
                 <a href="grupos.html"><p>Grupos</p></a>
                 <a href="perfil.html" class="active"><p>Perfil</p></a>
-                <a href="admin.html" id="link-admin" style="display:none;"><p>Admin</p></a>
+                <a href="admin.html" id="link-admin"><p>Admin</p></a>
             </nav>
         </aside>
 
@@ -69,18 +69,36 @@
                     <!-- Card Direito: Formulário -->
                     <div class="perfil-card details-info">
                         <form id="form-perfil-edit">
-                            <div class="form-group">
-                                <label>Nome Completo</label>
-                                <input type="text" id="perfil-nome" required>
+                            <div class="form-grid-inputs">
+                                <!-- Lado Esquerdo -->
+                                <div class="form-group">
+                                    <label>Nome Completo</label>
+                                    <input type="text" id="perfil-nome" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>E-mail</label>
+                                    <input type="email" id="perfil-email">
+                                </div>
+                                <div class="form-group">
+                                    <label>CPF</label>
+                                    <input type="text" id="perfil-cpf" placeholder="000.000.000-00" maxlength="14" autocomplete="off">
+                                </div>
+
+                                <!-- Lado Direito -->
+                                <div class="form-group">
+                                    <label>Telefone</label>
+                                    <input type="text" id="perfil-telefone">
+                                </div>
+                                <div class="form-group">
+                                    <label>Endereço</label>
+                                    <input type="text" id="perfil-endereco">
+                                </div>
+                                <div class="form-group">
+                                    <label>Cidade/Estado</label>
+                                    <input type="text" id="perfil-cidade">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>CPF (Obrigatório para empréstimos)</label>
-                                <input type="text" id="perfil-cpf" placeholder="000.000.000-00" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Telefone</label>
-                                <input type="text" id="perfil-telefone" placeholder="(00) 00000-0000">
-                            </div>
+
                             <button type="submit" class="btn-save">Atualizar Dados</button>
                         </form>
                     </div>
@@ -90,13 +108,13 @@
                 <!-- Histórico e Atividades -->
                 <div class="perfil-bottom">
                     <div class="perfil-card">
-                        <h3>📅 Minhas Reuniões</h3>
+                        <h3>Minhas Reuniões</h3>
                         <div id="minhas-reunioes" class="history-list">
                             <p class="empty-text">Nenhuma reunião encontrada.</p>
                         </div>
                     </div>
                     <div class="perfil-card">
-                        <h3>📚 Livros Alugados</h3>
+                        <h3>Livros Alugados</h3>
                         <div id="meus-livros" class="history-list">
                             <p class="empty-text">Nenhum livro alugado até o momento.</p>
                         </div>

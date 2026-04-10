@@ -9,16 +9,13 @@
 </head>
 
 <body>
-
     <div class="container">
-
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h2 class="logo">BIBLIOTECA</h2>
                 <div class="menu-toggle" id="menu-toggle">☰</div>
             </div>
-
             <nav>
                 <a href="dashboard.html"><p>Dashboard</p></a>
                 <a href="books.html"><p>Livros</p></a>
@@ -28,9 +25,7 @@
             </nav>
         </aside>
 
-        <!-- Main -->
         <div class="main">
-
             <!-- Header -->
             <header class="header">
                 <h1>Gerenciamento de Livros</h1>
@@ -48,16 +43,13 @@
 
             <!-- Conteúdo -->
             <section class="books-page">
-                <!-- Topo Dinâmico -->
                 <div class="books-top">
                     <h2 id="page-title">Biblioteca de Livros</h2>
-                    <!-- Botão que só o Admin verá -->
                     <button id="btn-admin-add" class="btn-add" onclick="window.location.href='cadastrarLivro.html'" style="display: none;">
                         + Cadastrar Novo Livro
                     </button>
                 </div>
 
-                <!-- Filtro (Largura menor como você pediu antes) -->
                 <div class="books-filters">
                     <input type="text" id="inputBusca" placeholder="Pesquisar por título ou autor..." style="width: 300px;">
                     <select id="filtroStatus">
@@ -67,89 +59,99 @@
                     </select>
                 </div>
 
-                <!-- Container para os CARDS (Visão do Usuário) -->
+                <!-- Visão Usuário -->
                 <div id="container-cards-livros" class="books-grid"></div>
 
-                <!-- Container para a TABELA (Visão do Admin - Oculta por padrão) -->
+                <!-- Visão Admin -->
                 <div id="area-admin-tabela" style="display: none;" class="table-container">
-                    <table>
+                    <table style="width: 100%; min-width: 800px;">
                         <thead>
                             <tr>
                                 <th>Capa</th>
                                 <th>Título</th>
                                 <th>Autor</th>
                                 <th>Status</th>
-                                <th>Ações</th>
+                                <th>Ações</th> 
                             </tr>
                         </thead>
                         <tbody id="tabelaLivrosCorpo"></tbody>
                     </table>
                 </div>
             </section>
-
         </div>
     </div>
 
-    <!-- Modal de Empréstimo -->
-    <div id="modalEmprestimo" class="modal-overlay">
+    <!-- MODAL: REGISTRAR EMPRÉSTIMO -->
+    <div id="modalEmprestimo" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="width: 500px;">
             <h2>Registrar Empréstimo</h2>
             <p id="nomeLivroModal" style="font-weight: bold; color: #2563eb; margin-bottom: 15px;"></p>
-            
             <form id="formEmprestimo">
                 <input type="hidden" id="idLivroModal">
-                
                 <div class="form-group">
-                    <label>Pesquisar Usuário (Digite o CPF):</label>
-                    <input type="text" id="inputUsuarioBusca" list="listaUsuarios" placeholder="000.000.000-00" required autocomplete="off">
-                    <datalist id="listaUsuarios"></datalist>
+                    <label>Pesquisar Usuário (CPF):</label>
+                    <input type="text" id="inputUsuarioBusca" placeholder="000.000.000-00" required autocomplete="off">
                 </div>
-
-                <!-- Campos de detalhes do usuário (Apenas leitura) -->
-                <div id="detalhesUsuario" style="background: var(--bg-main); padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; display: none;">
+                <div id="detalhesUsuario" style="background: #f0f0f0; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; display: none; color: #333;">
                     <p><strong>Nome:</strong> <span id="info-nome"></span></p>
                     <p><strong>E-mail:</strong> <span id="info-email"></span></p>
-                    <p><strong>Matrícula:</strong> <span id="info-matricula"></span></p>
-                    <p><strong>Telefone:</strong> <span id="info-telefone"></span></p>
-                    <p><strong>Endereço:</strong> <span id="info-endereco"></span></p>
                 </div>
-
                 <div class="modal-buttons">
-                    <button type="button" class="btn delete" onclick="fecharModal()">Cancelar</button>
+                    <button type="button" class="btn delete" onclick="fecharModalEmprestimo()">Cancelar</button>
                     <button type="submit" class="btn-save" id="btnConfirmarEmprestimo" disabled>Confirmar Aluguel</button>
                 </div>
             </form>
         </div>
     </div>
 
-   <!-- Modal de Detalhes do Livro (Para o Usuário) -->
+    <!-- MODAL: DETALHES GERAIS (SINOPSE) -->
     <div id="modalDetalhesLivro" class="modal-overlay" style="display: none;">
-        <div class="modal-content" style="width: 600px; max-height: 90vh; overflow-y: auto;">
-            <div style="display: flex; gap: 20px; align-items: start;">
-                <img id="detalheCapa" src="" alt="Capa" style="width: 150px; height: 220px; object-fit: cover; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
-                <div style="flex: 1;">
-                    <h2 id="detalheTitulo" style="margin-bottom: 5px; color: var(--text-color);"></h2>
-                    <p style="color: #666; margin-bottom: 10px;">Autor: <span id="detalheAutor" style="font-weight: bold;"></span></p>
-                    <div id="detalheStatus" class="status-livre" style="display: inline-block; padding: 5px 10px; border-radius: 4px; font-size: 12px;"></div>
+        <div class="modal-content" style="width: 600px;">
+            <div style="display: flex; gap: 20px;">
+                <img id="detalheCapa" src="" style="width: 150px; border-radius: 8px;">
+                <div>
+                    <h2 id="detalheTitulo"></h2>
+                    <p id="detalheAutor"></p>
+                    <div id="detalheStatus"></div>
                 </div>
             </div>
+            <p id="detalheSinopse" style="margin-top: 20px; text-align: justify;"></p>
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button class="btn delete" onclick="fecharModalGeral()">Fechar</button>
+                <a id="btnBaixarPDF" href="#" target="_blank" class="btn-save" style="text-decoration:none;">📥 Baixar PDF</a>
+            </div>
+        </div>
+    </div>
 
-            <div style="margin-top: 25px; border-top: 1px solid #ddd; padding-top: 15px;">
-                <h3 style="color: var(--text-color);">Sinopse</h3>
-                <p id="detalheSinopse" style="line-height: 1.6; color: var(--text-color); margin-top: 10px; text-align: justify;"></p>
+    <!-- MODAL: DETALHES DO EMPRÉSTIMO (INFORMAÇÕES COMPLETAS) -->
+    <div id="modalDetalhesEmprestimo" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; border-left: 5px solid #2563eb;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Informações do Locatário</h3>
+                <span style="cursor: pointer; font-size: 24px;" onclick="fecharModalEmprestimoInfo()">&times;</span>
+            </div>
+            <hr style="margin: 15px 0; border: 1px solid #eee;">
+            
+            <p><strong>Livro:</strong> <span id="infoLivroNome"></span></p>
+            
+            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 10px;">
+                <p><strong>Nome:</strong> <span id="infoUsuarioNome"></span></p>
+                <p><strong>Email:</strong> <span id="infoUsuarioEmail"></span></p>
+                <p><strong>elefone:</strong> <span id="infoUsuarioTelefone"></span></p>
+                <p><strong>Endereço:</strong> <span id="infoUsuarioEndereco"></span></p>
+                <p><strong>Cidade:</strong> <span id="infoUsuarioCidade"></span></p>
             </div>
 
-            <div class="modal-buttons" style="margin-top: 30px; display: flex; justify-content:space-between; gap: 10px;">
-                <button type="button" class="btn delete" onclick="fecharModalDetalhes()" style="background: #666;">Fechar</button>
-                <a id="btnBaixarPDF" href="#" target="_blank" class="btn-save" style="text-decoration: none; display: flex; align-items: center; justify-content: center; flex: 1;">
-                    📥 Baixar PDF para Ler
-                </a>
+            <div style="margin-top: 15px; padding: 12px; background: #fff5f5; border: 1px solid #feb2b2; border-radius: 6px;">
+                <p style="margin:0;"><strong>Retirada:</strong> <span id="infoDataInicio"></span></p>
+                <p style="margin:0; color: #c53030; font-weight: bold;"><strong>Devolução:</strong> <span id="infoDataFim"></span></p>
             </div>
+            
+            <button class="btn-save" style="margin-top: 20px; background: #4b5563; width: 100%;" onclick="fecharModalEmprestimoInfo()">Fechar</button>
         </div>
     </div>
 
     <script type="module" src="../js/livros.js"></script>
     <script type="module" src="../js/dashboard.js"></script>
 </body>
-
 </html>
