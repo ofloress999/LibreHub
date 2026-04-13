@@ -141,30 +141,27 @@ async function cadastrarOuAtualizarLivro(e) {
  */
 // --- 5. RENDERIZAÇÃO COM AUTO-CORREÇÃO ---
 async function carregarDadosDoFirebase() {
-    const corpoTabela = document.getElementById('tabelaLivrosCorpo'); // Visão Admin
-    const containerCards = document.getElementById('container-cards-livros'); // Visão Usuário
-    const areaAdminCadastro = document.getElementById('area-admin-cadastro'); // Botão/Link de Cadastro
-    const visaoAdminTabela = document.getElementById('visao-admin'); // Container da tabela completa
+    const corpoTabela = document.getElementById('tabelaLivrosCorpo'); 
+    const containerCards = document.getElementById('container-cards-livros'); 
+    const areaAdminCadastro = document.getElementById('area-admin-cadastro'); 
+    const visaoAdminTabela = document.getElementById('visao-admin'); 
 
-    // Limpa a role de aspas extras e espaços
     const role = String(localStorage.getItem('tipoUsuario') || "").replace(/["']/g, "").trim().toLowerCase();
     const isAdmin = (role === 'admin');
 
-    // 1. ORGANIZAÇÃO DA INTERFACE (Esconde o que não deve ser visto)
     if (isAdmin) {
-        if (containerCards) containerCards.style.display = 'none'; // Admin não vê cards
+        if (containerCards) containerCards.style.display = 'none'; 
         if (visaoAdminTabela) visaoAdminTabela.style.display = 'block';
         if (areaAdminCadastro) areaAdminCadastro.style.display = 'block';
     } else {
-        if (containerCards) containerCards.style.display = 'grid'; // Ou 'flex' conforme seu CSS
-        if (visaoAdminTabela) visaoAdminTabela.style.display = 'none'; // Usuário não vê tabela
+        if (containerCards) containerCards.style.display = 'grid'; 
+        if (visaoAdminTabela) visaoAdminTabela.style.display = 'none'; 
         if (areaAdminCadastro) areaAdminCadastro.style.display = 'none';
     }
 
     const snap = await getDocs(collection(db, "livros"));
     todosOsLivros = [];
 
-    // 2. LIMPEZA DOS DADOS ANTERIORES
     if (corpoTabela) corpoTabela.innerHTML = "";
     if (containerCards) containerCards.innerHTML = "";
 
@@ -179,13 +176,16 @@ async function carregarDadosDoFirebase() {
         
         todosOsLivros.push(livro);
 
-        // 3. RENDERIZAÇÃO ESPECÍFICA
         if (isAdmin) {
             if (corpoTabela) renderizarLinhaTabela(livro);
         } else {
             if (containerCards) renderizarCardUsuario(livro);
         }
     });
+
+    // --- ADICIONE ESTAS DUAS LINHAS AQUI (DEPOIS DO FOR-EACH) ---
+    atualizarOpcoesFiltroGenero(); // Povoa o select com os gêneros reais
+    filtrarLivros();              // Aplica filtros caso o usuário já tenha digitado algo
 }
 
 function renderizarLinhaTabela(l) {
@@ -221,6 +221,12 @@ function renderizarCardUsuario(l) {
     const disponivel = Number(l.quantidadeDisponivel || 0) > 0;
     const card = document.createElement('div');
     card.className = 'book-card-v2';
+    
+    // LINHA ESSENCIAL PARA O FILTRO FUNCIONAR:
+    card.setAttribute('data-id', l.id); 
+
+    card.onclick = () => window.abrirDetalhesLivro(l.id);
+
     card.innerHTML = `
         <img src="${l.capa}" class="book-cover-v2">
         <div class="book-info">
@@ -249,26 +255,44 @@ function filtrarLivros() {
 
     todosOsLivros.forEach(l => {
         const tr = document.querySelector(`tr[data-id="${l.id}"]`);
-        if (!tr) return;
+        const card = document.querySelector(`.book-card-v2[data-id="${l.id}"]`);
 
-        const matchesTexto = l.titulo.toLowerCase().includes(termo) || l.autor.toLowerCase().includes(termo);
-        const matchesGenero = generoSel === "Todos" || (l.generos && l.generos.includes(generoSel));
-        const disponivel = Number(l.quantidadeDisponivel) > 0;
-        const matchesStatus = statusSel === "Todos" || (statusSel === "Disponível" ? disponivel : !disponivel);
+        const matchesTexto = l.titulo.toLowerCase().includes(termo) || 
+                             l.autor.toLowerCase().includes(termo);
 
-        tr.style.display = (matchesTexto && matchesGenero && matchesStatus) ? "" : "none";
+        // Ajuste na lógica de gênero:
+        const matchesGenero = generoSel === "Todos" || 
+                             (l.generos && l.generos.includes(generoSel));
+
+        const disponivel = Number(l.quantidadeDisponivel || 0) > 0;
+        const matchesStatus = statusSel === "Todos" || 
+                             (statusSel === "Disponível" ? disponivel : !disponivel);
+
+        const exibir = matchesTexto && matchesGenero && matchesStatus;
+
+        if (tr) tr.style.display = exibir ? "" : "none";
+        if (card) card.style.display = exibir ? "flex" : "none";
     });
 }
 
 function atualizarOpcoesFiltroGenero() {
     const filtro = document.getElementById('filtroGenero');
     if (!filtro) return;
+    
     const generosSet = new Set();
     todosOsLivros.forEach(livro => {
-        if (Array.isArray(livro.generos)) livro.generos.forEach(g => generosSet.add(g));
+        if (Array.isArray(livro.generos)) {
+            livro.generos.forEach(g => generosSet.add(g));
+        }
     });
+
+    // Limpa e repovoa o select
     filtro.innerHTML = '<option value="Todos">Todos os Gêneros</option>';
-    generosSet.forEach(g => filtro.innerHTML += `<option value="${g}">${g}</option>`);
+    
+    // Transforma o Set em array e ordena alfabeticamente
+    Array.from(generosSet).sort().forEach(g => {
+        filtro.innerHTML += `<option value="${g}">${g}</option>`;
+    });
 }
 
 /**
@@ -511,6 +535,7 @@ async function confirmarEmprestimo(e) {
         alert("Aluguel registrado com sucesso!");
         window.fecharModalEmprestimo(); // Fecha o modal
         carregarDadosDoFirebase();     // Atualiza a tabela ao fundo
+        atualizarOpcoesFiltroGenero();    // Depois reconstrói o select de gêneros
 
     } catch (error) {
         console.error("Erro ao alugar:", error);
@@ -604,3 +629,41 @@ window.excluirLivro = async (id) => {
     }
 };
 
+
+window.abrirDetalhesLivro = (id) => {
+    const livro = todosOsLivros.find(l => l.id === id);
+    if (!livro) return;
+
+    // Preenche textos e imagem
+    document.getElementById('detalheCapa').src = livro.capa || '../img/default-book.png';
+    document.getElementById('detalheTitulo').innerText = livro.titulo;
+    document.getElementById('detalheAutor').innerText = livro.autor;
+    document.getElementById('detalheSinopse').innerText = livro.sinopse || "Sem sinopse disponível.";
+
+    // Preenche Gêneros
+    const generosDiv = document.getElementById('detalheGeneros');
+    generosDiv.innerHTML = (livro.generos || []).map(g => 
+        `<span class="tag-genero" style="background:#e2e8f0; padding:2px 8px; border-radius:4px; font-size:0.7rem;">${g}</span>`
+    ).join('');
+
+    // --- LÓGICA DO PDF (CORREÇÃO AQUI) ---
+    const btnPDF = document.getElementById('btnBaixarPDF');
+    
+    if (livro.pdfUrl && livro.pdfUrl.trim() !== "") {
+        btnPDF.href = livro.pdfUrl; // Aqui entra o Base64 ou Link
+        btnPDF.style.display = 'flex'; // Use flex para manter o alinhamento centralizado
+                
+        // Opcional: define o nome do arquivo no download
+        btnPDF.setAttribute('download', `Livro_${livro.titulo}.pdf`);
+    } else {
+        btnPDF.style.display = 'none'; // Esconde se não houver arquivo
+    }
+
+    // Abre o modal
+    document.getElementById('modalDetalhesLivro').style.display = 'flex';
+};
+
+// Função para fechar (caso ainda não tenha)
+window.fecharModalGeral = () => {
+    document.getElementById('modalDetalhesLivro').style.display = 'none';
+};

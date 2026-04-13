@@ -117,21 +117,34 @@
         </div>
     </div>
 
-    <div id="modalDetalhesLivro" class="modal-overlay" style="display: none;">
-        <div class="modal-content" style="width: 600px;">
-            <div style="display: flex; gap: 20px;">
-                <img id="detalheCapa" src="" style="width: 150px; border-radius: 8px;" alt="Capa">
-                <div>
-                    <h2 id="detalheTitulo"></h2>
-                    <p id="detalheAutor" style="color: #666; margin-bottom: 5px;"></p>
-                    <div id="detalheStatus"></div>
-                    <div id="detalheGeneros" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px;"></div>
-                </div>
+    <div id="modalDetalhesLivro" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center;">
+        <div class="modal-content" style="width: 750px; background: white; border-radius: 15px; padding: 30px; display: flex; gap: 30px; position: relative;">
+            
+            <div style="flex: 0 0 200px;">
+                <img id="detalheCapa" src="" style="width: 100%; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); object-fit: cover;" alt="Capa">
             </div>
-            <p id="detalheSinopse" style="margin-top: 20px; text-align: justify; line-height: 1.6;"></p>
-            <div class="modal-buttons" style="margin-top: 20px;">
-                <button class="btn delete" onclick="window.fecharModalGeral()">Fechar</button>
-                <a id="btnBaixarPDF" href="#" target="_blank" class="btn-save" style="text-decoration:none;">📥 Baixar PDF</a>
+
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                <h2 id="detalheTitulo" style="margin: 0; color: #1e293b; font-size: 1.8rem;"></h2>
+                <p id="detalheAutor" style="color: #64748b; margin: 0; font-weight: bold;"></p>
+                
+                <div id="detalheStatus"></div>
+
+                <div id="detalheGeneros" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 5px;"></div>
+
+                <div style="margin-top: 15px; flex-grow: 1;">
+                    <h4 style="margin: 0 0 5px 0; color: #475569; font-size: 0.9rem; text-transform: uppercase;">Sinopse</h4>
+                    <p id="detalheSinopse" style="color: #334155; line-height: 1.6; text-align: justify; margin: 0; max-height: 150px; overflow-y: auto;"></p>
+                </div>
+
+                <div class="modal-buttons" style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="btn delete" onclick="window.fecharModalGeral()" style="flex: 1; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                        Fechar
+                    </button>
+                    <a id="btnBaixarPDF" href="#" target="_blank" class="btn-save" style="flex: 1; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; text-decoration: none; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        📥 Baixar PDF
+                    </a>
+                </div>
             </div>
         </div>
     </div>
