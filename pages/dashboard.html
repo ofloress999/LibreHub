@@ -45,34 +45,27 @@
 
             <!-- Cards -->
             <section class="cards">
-                <!-- ID adicionado para total de livros (opcional, adicionei para ficar mais completo) -->
-                <div class="card">
-                    <h3>Total de Livros</h3>
-                    <span id="num-total-livros">0</span>
-                </div>
-                <!-- ID adicionado para disponíveis -->
-                <div class="card">
-                    <h3>Livros Disponíveis</h3>
-                    <p id="dash-disponiveis">0</p>
-                </div>
-                <!-- ID adicionado para alugados -->
                 <div class="card">
                     <h3>Livros Alugados</h3>
-                    <p id="dash-alugados">0</p>
+                    <p id="dash-meus-alugados">0</p>
                 </div>
                 <div class="card">
-                    <h3>Usuários</h3>
-                    <p>18</p> <!-- Valor fixo por enquanto -->
+                    <h3>Minhas Reuniões</h3>
+                    <p id="dash-minhas-reunioes">0</p>
+                </div>
+                <div class="card">
+                    <h3>Livros Lidos</h3>
+                    <p id="dash-livros-lidos">0</p>
                 </div>
             </section>
 
-            <!-- Últimos Livros -->
-            <!-- No seu dashboard.html ou index.html -->
             <section class="recent">
-                <h2>Livros Recentes</h2>
-                <div class="books" id="recent-books-container">
-                    <!-- O JS vai injetar os cards aqui -->
+                <div class="section-header" style="display: flex; justify-content: space-between; width: 100%; align-items: center; padding: 0 10px;">
+                    <h2>Novidades na Biblioteca</h2>
+                    <a href="books.html" style="color: var(--primary); text-decoration: none; font-weight: bold;">Ver todos →</a>
                 </div>
+                <div class="books" id="recent-books-container">
+                    </div>
             </section>
         </div>
     </div>

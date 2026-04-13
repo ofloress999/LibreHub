@@ -7,6 +7,17 @@
     <title>Gerenciamento de Livros</title>
     <link rel="stylesheet" href="../css/dashboard.css">
     <link rel="stylesheet" href="../css/livros.css">
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.classList.add('dark');
+                const btn = document.getElementById('theme-toggle');
+                if(btn) btn.innerText = '☀️';
+            });
+        }
+    </script>
 </head>
 
 <body>

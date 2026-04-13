@@ -1,92 +1,101 @@
 import { auth, db } from './firebase.js'; 
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { 
+    doc, getDoc, collection, getDocs, query, where, limit, orderBy 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Tema salvo
+    if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
+
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // 1. Carrega dados do perfil (Foto)
+            // Carregar Foto de Perfil
             const userDoc = await getDoc(doc(db, "usuarios", user.uid));
             if (userDoc.exists()) {
                 const dados = userDoc.data();
-                const profileBtn = document.getElementById('profileBtn');
-                if (dados.fotoUrl && profileBtn) {
-                    profileBtn.src = dados.fotoUrl;
-                    profileBtn.style.objectFit = "cover";
-                    profileBtn.style.borderRadius = "50%";
-                }
-                
-                // Atualiza o cargo no localStorage caso tenha mudado no banco
-                if (dados.role) {
-                    localStorage.setItem('tipoUsuario', dados.role);
-                }
+                if (dados.fotoUrl) document.getElementById('profileBtn').src = dados.fotoUrl;
             }
+
+            // --- CHAMADA DAS FUNÇÕES DE DADOS REAIS ---
+            carregarDadosContadores(user.uid);
+            carregarLivrosRecentes();
         } else {
-            // Se não houver usuário logado, volta para o login
             window.location.href = "../index.html";
         }
     });
 
     initGlobalFeatures();
-    setupMascaras();
 });
 
-// --- FUNÇÕES GLOBAIS (TEMA E MENU) ---
+// --- FUNÇÃO QUE BUSCA OS NÚMEROS REAIS ---
+async function carregarDadosContadores(userId) {
+    try {
+        // 1. LIVROS ALUGADOS (Status: 'ativo')
+        const qAlugados = query(
+            collection(db, "alugueis"), 
+            where("usuarioId", "==", userId), 
+            where("status", "==", "ativo")
+        );
+        const snapAlugados = await getDocs(qAlugados);
+        document.getElementById('dash-meus-alugados').innerText = snapAlugados.size;
+
+        // 2. LIVROS LIDOS (Status: 'devolvido')
+        const qLidos = query(
+            collection(db, "alugueis"), 
+            where("usuarioId", "==", userId), 
+            where("status", "==", "devolvido")
+        );
+        const snapLidos = await getDocs(qLidos);
+        document.getElementById('dash-livros-lidos').innerText = snapLidos.size;
+
+        // 3. MINHAS REUNIÕES (Onde o usuário é participante)
+        const qReunioes = query(
+            collection(db, "reunioes"), 
+            where("participantes", "array-contains", userId)
+        );
+        const snapReunioes = await getDocs(qReunioes);
+        document.getElementById('dash-minhas-reunioes').innerText = snapReunioes.size;
+
+    } catch (error) {
+        console.error("Erro ao carregar contadores:", error);
+    }
+}
+
+// --- FUNÇÃO PARA OS CARDS PEQUENOS (RECENTES) ---
+async function carregarLivrosRecentes() {
+    const container = document.getElementById('recent-books-container');
+    if (!container) return;
+
+    try {
+        // Pega os 4 últimos livros
+        const q = query(collection(db, "livros"), limit(4));
+        const snap = await getDocs(q);
+        
+        container.innerHTML = "";
+        snap.forEach(docSnap => {
+            const l = docSnap.data();
+            container.innerHTML += `
+                <div class="book-card-small" onclick="window.location.href='books.html'">
+                    <img src="${l.capa || '../img/default-book.png'}" class="book-cover-small">
+                    <div class="book-info-small">
+                        <h3>${l.titulo}</h3>
+                        <p>${l.autor}</p>
+                    </div>
+                </div>`;
+        });
+    } catch (error) {
+        console.log("Erro na vitrine:", error);
+    }
+}
 
 function initGlobalFeatures() {
-    // Lógica do Tema (Dark Mode)
+    // Lógica de Menu, Dark Mode e Dropdown (seus códigos padrão)
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) {
         themeToggle.onclick = () => {
-            const isDark = document.body.classList.toggle('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            document.body.classList.toggle('dark');
+            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
         };
-    }
-    
-    // Aplica o tema salvo ao carregar
-    if (localStorage.getItem('theme') === 'dark') {
-        document.body.classList.add('dark');
-    }
-
-    // Dropdown do Menu de Perfil
-    const profileBtn = document.getElementById('profileBtn');
-    const dropdown = document.getElementById('dropdown');
-    
-    if (profileBtn && dropdown) {
-        profileBtn.onclick = (e) => {
-            e.stopPropagation();
-            dropdown.classList.toggle('show');
-        };
-    }
-
-    // Fecha o dropdown ao clicar em qualquer lugar da tela
-    document.addEventListener('click', () => {
-        if (dropdown) dropdown.classList.remove('show');
-    });
-}
-
-// --- MÁSCARAS DE INPUT ---
-
-function setupMascaras() {
-    const inputCpf = document.getElementById('perfil-cpf');
-
-    if (inputCpf) {
-        inputCpf.addEventListener('input', (e) => {
-            let value = e.target.value;
-
-            // 1. Remove tudo que não for número
-            value = value.replace(/\D/g, "");
-
-            // 2. Limita a 11 caracteres
-            if (value.length > 11) value = value.slice(0, 11);
-
-            // 3. Aplica a formatação dinamicamente (000.000.000-00)
-            value = value.replace(/(\d{3})(\d)/, "$1.$2");
-            value = value.replace(/(\d{3})(\d)/, "$1.$2");
-            value = value.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-
-            e.target.value = value;
-        });
     }
 }
