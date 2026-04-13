@@ -18,8 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // --- CHAMADA DAS FUNÇÕES DE DADOS REAIS ---
-            // É fundamental passar o user.uid para as funções funcionarem
             carregarDadosContadores(user.uid);
             carregarLivrosRecentes();
 
@@ -31,12 +29,17 @@ document.addEventListener('DOMContentLoaded', () => {
     initGlobalFeatures();
 });
 
+// --- FUNÇÃO PARA FECHAR QUALQUER MODAL (GLOBAL) ---
+// Penduramos no window para que onclicks no HTML funcionem
+window.fecharModalGeral = (idModal) => {
+    const modal = document.getElementById(idModal);
+    if (modal) modal.style.display = "none";
+};
+
 // --- FUNÇÃO QUE BUSCA OS NÚMEROS REAIS ---
 async function carregarDadosContadores(userId) {
     try {
-        console.log("Buscando dados para:", userId);
-
-        // 1. LIVROS ALUGADOS (Status: 'ativo')
+        // 1. LIVROS ALUGADOS
         const qAlugados = query(
             collection(db, "alugueis"), 
             where("usuarioId", "==", userId), 
@@ -46,7 +49,7 @@ async function carregarDadosContadores(userId) {
         const elAlugados = document.getElementById('dash-meus-alugados');
         if (elAlugados) elAlugados.innerText = snapAlugados.size;
 
-        // 2. LIVROS LIDOS (Status: 'devolvido')
+        // 2. LIVROS LIDOS
         const qLidos = query(
             collection(db, "alugueis"), 
             where("usuarioId", "==", userId), 
@@ -70,7 +73,6 @@ async function carregarDadosContadores(userId) {
     }
 }
 
-// --- FUNÇÃO PARA OS LIVROS RECENTES ---
 async function carregarLivrosRecentes() {
     const container = document.getElementById('recent-books-container');
     if (!container) return;
@@ -97,7 +99,7 @@ async function carregarLivrosRecentes() {
 }
 
 function initGlobalFeatures() {
-    // Menu Toggle (Sidebar)
+    // Menu Sidebar
     const menuToggle = document.getElementById('menu-toggle');
     const sidebar = document.getElementById('sidebar');
     if (menuToggle && sidebar) {
@@ -123,5 +125,30 @@ function initGlobalFeatures() {
             dropdown.classList.toggle('show');
         };
     }
-    document.addEventListener('click', () => dropdown?.classList.remove('show'));
+
+    // --- LÓGICA DE FECHAMENTO DE MODAIS CORRIGIDA ---
+    document.addEventListener('click', (e) => {
+        // Fecha dropdown ao clicar fora
+        if (dropdown && !profileBtn.contains(e.target)) {
+            dropdown.classList.remove('show');
+        }
+        
+        // 1. Fechar ao clicar no fundo escuro (overlay)
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = "none";
+        }
+
+        // 2. Fechar ao clicar no botão "X" (classe close-modal)
+        if (e.target.classList.contains('close-modal')) {
+            const modal = e.target.closest('.modal');
+            if (modal) modal.style.display = "none";
+        }
+
+        // 3. CORREÇÃO: Fechar ao clicar no botão que tem o ID 'btn-fechar-modal'
+        // ou que simplesmente contenha o texto "Fechar"
+        if (e.target.id === 'btn-fechar-modal' || e.target.getAttribute('onclick')?.includes('fecharModal')) {
+            const modal = e.target.closest('.modal');
+            if (modal) modal.style.display = "none";
+        }
+    });
 }
