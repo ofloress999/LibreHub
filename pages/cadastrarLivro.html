@@ -2,135 +2,95 @@
 <html lang="pt-br">
 
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Cadastrar Livro</title>
-
-<link rel="stylesheet" href="../css/dashboard.css">
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastrar Livro</title>
+    <link rel="stylesheet" href="../css/dashboard.css">
 </head>
 
 <body>
 
-<div class="container">
-
-<!-- Sidebar -->
-
-<aside class="sidebar" id="sidebar">
-
-<div class="sidebar-header">
-<h2 class="logo">BIBLIOTECA</h2>
-
-<div class="menu-toggle" id="menu-toggle">
-☰
-</div>
-
-</div>
-
-<nav>
+    <div class="container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="logo">BIBLIOTECA</h2>
+                <div class="menu-toggle" id="menu-toggle">☰</div>
+            </div>
+            <nav>
                 <a href="dashboard.html"><p>Dashboard</p></a>
                 <a href="books.html"><p>Livros</p></a>
                 <a href="grupos.html"><p>Grupos</p></a>
-                <a href="perfil"><p>Perfil</p></a>
+                <a href="perfil.html"><p>Perfil</p></a>
                 <a href="admin.html"><p>Admin</p></a>
+            </nav>
+        </aside>
 
-</nav>
+        <div class="main">
+            <header class="header">
+                <h1>Cadastrar Livro</h1>
+                <div class="header-right">
+                    <div class="theme-toggle" id="theme-toggle">🌙</div>
+                    <div class="profile">
+                        <img src="../img/user.png" id="profileBtn">
+                        <div class="dropdown" id="dropdown">
+                            <a href="perfil.html">Perfil</a>
+                            <a href="../index.html">Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </header>
 
-</aside>
+            <section class="form-container">
+                <h2>Novo Livro</h2>
+                <form class="form-book" id="form-cadastrar-livro">
+                    <div class="form-group">
+                        <label>Nome do Livro</label>
+                        <input type="text" id="titulo" placeholder="Digite o nome do livro" required>
+                    </div>
 
+                    <div class="form-group">
+                        <label>Autor</label>
+                        <input type="text" id="autor" placeholder="Digite o autor" required>
+                    </div>
 
-<!-- Main -->
+                    <div class="form-group">
+                        <label>Categorias:</label>
+                        <div class="tags-input-container">
+                            <div id="lista-tags-cadastro" style="display: flex; flex-wrap: wrap; gap: 5px;"></div>
+                            <input type="text" id="input-tag-genero" placeholder="Ex: Fantasia, Ação, Suspense..." autocomplete="off">
+                        </div>
+                    </div>
 
-<div class="main">
+                    <div class="form-group">
+                        <label>Quantidade</label>
+                        <input type="number" id="quantidade" placeholder="Quantidade" required>
+                    </div>
 
-<!-- Header -->
+                    <div class="form-group">
+                        <label>Descrição (Sinopse)</label>
+                        <textarea id="sinopse" placeholder="Descrição do livro" rows="4"></textarea>
+                    </div>
 
-<header class="header">
+                    <div class="form-group">
+                        <label>Capa do Livro (Imagem)</label>
+                        <input type="file" id="capa-arquivo" accept="image/*">
+                    </div>
 
-<h1>Cadastrar Livro</h1>
+                    <div class="form-group">
+                        <label>PDF do Livro</label>
+                        <input type="file" id="pdf-arquivo" accept="application/pdf">
+                    </div>
 
-<div class="header-right">
+                    <button type="submit" class="btn-save" id="btn-salvar-livro">
+                        Salvar Livro
+                    </button>
+                </form>
+            </section>
+        </div>
+    </div>
 
-<div class="theme-toggle" id="theme-toggle">
-🌙
-</div>
-
-<div class="profile">
-
-<img src="../img/user.png" id="profileBtn">
-
-<div class="dropdown" id="dropdown">
-<a href="#">Perfil</a>
-<a href="#">Logout</a>
-</div>
-
-</div>
-
-</div>
-
-</header>
-
-
-<!-- Form -->
-
-<section class="form-container">
-
-<h2>Novo Livro</h2>
-
-<form class="form-book">
-
-<div class="form-group">
-<label>Nome do Livro</label>
-<input type="text" placeholder="Digite o nome do livro">
-</div>
-
-<div class="form-group">
-<label>Autor</label>
-<input type="text" placeholder="Digite o autor">
-</div>
-
-<div class="form-group">
-<label>Categoria</label>
-<input type="text" placeholder="Ex: Programação">
-</div>
-
-<div class="form-group">
-<label>Quantidade</label>
-<input type="number" placeholder="Quantidade">
-</div>
-
-<div class="form-group">
-<label>Descrição</label>
-<textarea placeholder="Descrição do livro"></textarea>
-</div>
-
-<div class="form-group">
-<label>Capa do Livro</label>
-<input type="file">
-</div>
-
-<div class="form-group">
-<label>PDF do Livro</label>
-<input type="file">
-</div>
-
-<!-- Adicionei o type="submit" -->
-<button type="submit" class="btn-save">
-    Salvar Livro
-</button>
-
-</form>
-
-</section>
-
-</div>
-
-</div>
-
-<script type="module" src="../js/dashboard.js"></script>
-<script type="module" src="../js/cadastrarLivro.js"></script>
+    <script type="module" src="../js/dashboard.js"></script>
+    <script type="module" src="../js/cadastrarLivro.js"></script>
 
 </body>
-
 </html>

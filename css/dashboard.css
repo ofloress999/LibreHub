@@ -118,6 +118,7 @@ img {
 }
 
 .menu-toggle, .theme-toggle, .menu-hamburguer {
+    display: none;
     cursor: pointer;
     font-size: 20px;
 }
@@ -512,5 +513,97 @@ table th, table td {
 @media (min-width: 769px) {
     #btn-mobile, .menu-hamburguer, .header-mobile {
         display: none !important;
+    }
+}
+
+/* ==========================================================================
+   10. SISTEMA DE TAGS (GÊNEROS)
+   ========================================================================== */
+
+/* Container que envolve o input e as tags já inseridas */
+.tags-input-container {
+    display: flex;
+    flex-wrap: wrap;
+    border: 1px solid var(--border-color);
+    padding: 6px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    gap: 6px;
+    align-items: center;
+    min-height: 45px;
+    transition: border-color 0.3s;
+}
+
+.tags-input-container:focus-within {
+    border-color: var(--primary);
+}
+
+/* Estilo de cada etiqueta (Tag) */
+.tag {
+    background: var(--primary);
+    color: white;
+    padding: 5px 12px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 500;
+    gap: 8px;
+    animation: fadeIn 0.3s ease;
+}
+
+/* Botão "X" de remover a tag */
+.tag span {
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 16px;
+    line-height: 1;
+    transition: opacity 0.2s;
+}
+
+.tag span:hover {
+    opacity: 0.7;
+}
+
+/* Input invisível dentro do container de tags */
+.tags-input-container input {
+    border: none !important;
+    outline: none !important;
+    flex: 1;
+    min-width: 120px;
+    background: transparent !important;
+    color: var(--text-color);
+    padding: 5px;
+}
+
+/* Tags no Modal de Detalhes (Visualização) */
+#detalheGeneros .tag {
+    background: var(--hover-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    cursor: default;
+}
+
+/* Ajuste no seletor de Filtro de Gênero */
+#filtroGenero {
+    min-width: 150px;
+}
+
+/* Animação suave para novas tags */
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Responsividade para os filtros */
+@media (max-width: 768px) {
+    .books-filters {
+        display: grid;
+        grid-template-columns: 1fr; /* Empilha filtros no mobile */
+        gap: 10px;
+    }
+    
+    #inputBusca, #filtroStatus, #filtroGenero {
+        width: 100% !important;
     }
 }

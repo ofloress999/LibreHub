@@ -1,0 +1,33 @@
+.modal-buttons {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+}
+
+#btnConfirmarEmprestimo {
+    width: 200px;
+    height: 20px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+} 
+
+/* Cor verde para disponível */
+.status-disponivel {
+    color: #10b981;
+    font-weight: bold;
+}
+
+/* Cor vermelha para esgotado */
+.status-esgotado {
+    color: #ef4444;
+    font-weight: bold;
+}
+
+/* Deixa o botão cinza quando desativado */
+button:disabled {
+    background-color: #ccc !important;
+    cursor: not-allowed;
+    opacity: 0.6;
+}

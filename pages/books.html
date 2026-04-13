@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerenciamento de Livros</title>
     <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/livros.css">
 </head>
 
 <body>
     <div class="container">
-        <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h2 class="logo">BIBLIOTECA</h2>
@@ -26,7 +26,6 @@
         </aside>
 
         <div class="main">
-            <!-- Header -->
             <header class="header">
                 <h1>Gerenciamento de Livros</h1>
                 <div class="header-right">
@@ -41,7 +40,6 @@
                 </div>
             </header>
 
-            <!-- Conteúdo -->
             <section class="books-page">
                 <div class="books-top">
                     <h2 id="page-title">Biblioteca de Livros</h2>
@@ -52,17 +50,20 @@
 
                 <div class="books-filters">
                     <input type="text" id="inputBusca" placeholder="Pesquisar por título ou autor..." style="width: 300px;">
+                    
+                    <select id="filtroGenero">
+                        <option value="Todos">Todos os Gêneros</option>
+                    </select>
+
                     <select id="filtroStatus">
                         <option value="Todos">Todos os Status</option>
                         <option value="Disponível">Disponível</option>
-                        <option value="Alugado">Alugado</option>
+                        <option value="Esgotado">Esgotado</option>
                     </select>
                 </div>
 
-                <!-- Visão Usuário -->
                 <div id="container-cards-livros" class="books-grid"></div>
 
-                <!-- Visão Admin -->
                 <div id="area-admin-tabela" style="display: none;" class="table-container">
                     <table style="width: 100%; min-width: 800px;">
                         <thead>
@@ -70,7 +71,7 @@
                                 <th>Capa</th>
                                 <th>Título</th>
                                 <th>Autor</th>
-                                <th>Status</th>
+                                <th>Status (Qtd)</th>
                                 <th>Ações</th> 
                             </tr>
                         </thead>
@@ -81,7 +82,6 @@
         </div>
     </div>
 
-    <!-- MODAL: REGISTRAR EMPRÉSTIMO -->
     <div id="modalEmprestimo" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="width: 500px;">
             <h2>Registrar Empréstimo</h2>
@@ -92,10 +92,13 @@
                     <label>Pesquisar Usuário (CPF):</label>
                     <input type="text" id="inputUsuarioBusca" placeholder="000.000.000-00" required autocomplete="off">
                 </div>
-                <div id="detalhesUsuario" style="background: #f0f0f0; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; display: none; color: #333;">
-                    <p><strong>Nome:</strong> <span id="info-nome"></span></p>
-                    <p><strong>E-mail:</strong> <span id="info-email"></span></p>
+                
+                <div id="detalhesUsuario" style="background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; font-size: 13px; display: none; color: #333;">
+                    <p style="margin: 5px 0;"><strong>Nome:</strong> <span id="info-nome"></span></p>
+                    <p style="margin: 5px 0;"><strong>E-mail:</strong> <span id="info-email"></span></p>
+                    <p style="margin: 5px 0;"><strong>Telefone:</strong> <span id="info-telefone"></span></p>
                 </div>
+
                 <div class="modal-buttons">
                     <button type="button" class="btn delete" onclick="fecharModalEmprestimo()">Cancelar</button>
                     <button type="submit" class="btn-save" id="btnConfirmarEmprestimo" disabled>Confirmar Aluguel</button>
@@ -104,18 +107,18 @@
         </div>
     </div>
 
-    <!-- MODAL: DETALHES GERAIS (SINOPSE) -->
     <div id="modalDetalhesLivro" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="width: 600px;">
             <div style="display: flex; gap: 20px;">
                 <img id="detalheCapa" src="" style="width: 150px; border-radius: 8px;">
                 <div>
                     <h2 id="detalheTitulo"></h2>
-                    <p id="detalheAutor"></p>
+                    <p id="detalheAutor" style="color: #666; margin-bottom: 5px;"></p>
                     <div id="detalheStatus"></div>
+                    <div id="detalheGeneros" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px;"></div>
                 </div>
             </div>
-            <p id="detalheSinopse" style="margin-top: 20px; text-align: justify;"></p>
+            <p id="detalheSinopse" style="margin-top: 20px; text-align: justify; line-height: 1.6;"></p>
             <div class="modal-buttons" style="margin-top: 20px;">
                 <button class="btn delete" onclick="fecharModalGeral()">Fechar</button>
                 <a id="btnBaixarPDF" href="#" target="_blank" class="btn-save" style="text-decoration:none;">📥 Baixar PDF</a>
@@ -123,7 +126,6 @@
         </div>
     </div>
 
-    <!-- MODAL: DETALHES DO EMPRÉSTIMO (INFORMAÇÕES COMPLETAS) -->
     <div id="modalDetalhesEmprestimo" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="max-width: 500px; border-left: 5px solid #2563eb;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -137,14 +139,13 @@
             <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 10px;">
                 <p><strong>Nome:</strong> <span id="infoUsuarioNome"></span></p>
                 <p><strong>Email:</strong> <span id="infoUsuarioEmail"></span></p>
-                <p><strong>elefone:</strong> <span id="infoUsuarioTelefone"></span></p>
-                <p><strong>Endereço:</strong> <span id="infoUsuarioEndereco"></span></p>
-                <p><strong>Cidade:</strong> <span id="infoUsuarioCidade"></span></p>
+                <p><strong>Telefone:</strong> <span id="infoUsuarioTelefone"></span></p>
+                <p id="row-endereco" style="display:none;"><strong>Endereço:</strong> <span id="infoUsuarioEndereco"></span></p>
             </div>
 
             <div style="margin-top: 15px; padding: 12px; background: #fff5f5; border: 1px solid #feb2b2; border-radius: 6px;">
                 <p style="margin:0;"><strong>Retirada:</strong> <span id="infoDataInicio"></span></p>
-                <p style="margin:0; color: #c53030; font-weight: bold;"><strong>Devolução:</strong> <span id="infoDataFim"></span></p>
+                <p style="margin:0; color: #c53030; font-weight: bold;"><strong>Devolução Máxima:</strong> <span id="infoDataFim"></span></p>
             </div>
             
             <button class="btn-save" style="margin-top: 20px; background: #4b5563; width: 100%;" onclick="fecharModalEmprestimoInfo()">Fechar</button>
