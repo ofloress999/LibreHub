@@ -31,7 +31,7 @@
                 <div class="header-right">
                     <div class="theme-toggle" id="theme-toggle">🌙</div>
                     <div class="profile">
-                        <img src="../img/user.png" id="profileBtn">
+                        <img src="../img/user.png" id="profileBtn" alt="Perfil">
                         <div class="dropdown" id="dropdown">
                             <a href="perfil.html">Perfil</a>
                             <a href="../index.html">Logout</a>
@@ -43,9 +43,11 @@
             <section class="books-page">
                 <div class="books-top">
                     <h2 id="page-title">Biblioteca de Livros</h2>
-                    <button id="btn-admin-add" class="btn-add" onclick="window.location.href='cadastrarLivro.html'" style="display: none;">
-                        + Cadastrar Novo Livro
-                    </button>
+                    <div id="area-admin-cadastro" style="display: none;">
+                        <button class="btn-add" onclick="window.location.href='cadastrarLivro.html'">
+                            + Cadastrar Novo Livro
+                        </button>
+                    </div>
                 </div>
 
                 <div class="books-filters">
@@ -86,21 +88,29 @@
         <div class="modal-content" style="width: 500px;">
             <h2>Registrar Empréstimo</h2>
             <p id="nomeLivroModal" style="font-weight: bold; color: #2563eb; margin-bottom: 15px;"></p>
+            
             <form id="formEmprestimo">
                 <input type="hidden" id="idLivroModal">
-                <div class="form-group">
+                <input type="hidden" id="idUsuarioAluguel"> <div class="form-group">
                     <label>Pesquisar Usuário (CPF):</label>
-                    <input type="text" id="inputUsuarioBusca" placeholder="000.000.000-00" required autocomplete="off">
+                    <input type="text" id="inputUsuarioBusca" placeholder="000.000.000-00" required>
                 </div>
                 
-                <div id="detalhesUsuario" style="background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; font-size: 13px; display: none; color: #333;">
-                    <p style="margin: 5px 0;"><strong>Nome:</strong> <span id="info-nome"></span></p>
-                    <p style="margin: 5px 0;"><strong>E-mail:</strong> <span id="info-email"></span></p>
-                    <p style="margin: 5px 0;"><strong>Telefone:</strong> <span id="info-telefone"></span></p>
+                <div id="detalhesUsuario" style="background: #f8fafc; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; display: none;">
+                    <p><strong>Nome:</strong> <span id="info-nome"></span></p>
+                    <p><strong>E-mail:</strong> <span id="info-email"></span></p>
+
+                    <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #cbd5e1;">
+                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Selecione o Carimbo (ID físico):</label>
+                        <select id="selectIdExemplar" class="form-control" required style="width: 100%; padding: 8px;">
+                            <option value="">Carregando exemplares...</option>
+                        </select>
+                        <small style="color: #64748b;">Escolha o código carimbado no livro físico.</small>
+                    </div>
                 </div>
 
-                <div class="modal-buttons">
-                    <button type="button" class="btn delete" onclick="fecharModalEmprestimo()">Cancelar</button>
+                <div class="modal-buttons" style="margin-top: 20px;">
+                    <button type="button" class="btn delete" onclick="window.fecharModalEmprestimo()">Cancelar</button>
                     <button type="submit" class="btn-save" id="btnConfirmarEmprestimo" disabled>Confirmar Aluguel</button>
                 </div>
             </form>
@@ -110,7 +120,7 @@
     <div id="modalDetalhesLivro" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="width: 600px;">
             <div style="display: flex; gap: 20px;">
-                <img id="detalheCapa" src="" style="width: 150px; border-radius: 8px;">
+                <img id="detalheCapa" src="" style="width: 150px; border-radius: 8px;" alt="Capa">
                 <div>
                     <h2 id="detalheTitulo"></h2>
                     <p id="detalheAutor" style="color: #666; margin-bottom: 5px;"></p>
@@ -120,39 +130,35 @@
             </div>
             <p id="detalheSinopse" style="margin-top: 20px; text-align: justify; line-height: 1.6;"></p>
             <div class="modal-buttons" style="margin-top: 20px;">
-                <button class="btn delete" onclick="fecharModalGeral()">Fechar</button>
+                <button class="btn delete" onclick="window.fecharModalGeral()">Fechar</button>
                 <a id="btnBaixarPDF" href="#" target="_blank" class="btn-save" style="text-decoration:none;">📥 Baixar PDF</a>
             </div>
         </div>
     </div>
 
-    <div id="modalDetalhesEmprestimo" class="modal-overlay" style="display: none;">
-        <div class="modal-content" style="max-width: 500px; border-left: 5px solid #2563eb;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>Informações do Locatário</h3>
-                <span style="cursor: pointer; font-size: 24px;" onclick="fecharModalEmprestimoInfo()">&times;</span>
-            </div>
-            <hr style="margin: 15px 0; border: 1px solid #eee;">
-            
-            <p><strong>Livro:</strong> <span id="infoLivroNome"></span></p>
-            
-            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 10px;">
-                <p><strong>Nome:</strong> <span id="infoUsuarioNome"></span></p>
-                <p><strong>Email:</strong> <span id="infoUsuarioEmail"></span></p>
-                <p><strong>Telefone:</strong> <span id="infoUsuarioTelefone"></span></p>
-                <p id="row-endereco" style="display:none;"><strong>Endereço:</strong> <span id="infoUsuarioEndereco"></span></p>
+    <div id="modalListaAlugueis" class="modal-overlay" style="display: none; background: rgba(0,0,0,0.7);">
+        <div class="modal-content" style="width: 550px; background: #f8fafc; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; color: #1e293b; font-size: 1.5rem;">Exemplares Alugados</h2>
+                <button onclick="document.getElementById('modalListaAlugueis').style.display='none'" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #64748b;">&times;</button>
             </div>
 
-            <div style="margin-top: 15px; padding: 12px; background: #fff5f5; border: 1px solid #feb2b2; border-radius: 6px;">
-                <p style="margin:0;"><strong>Retirada:</strong> <span id="infoDataInicio"></span></p>
-                <p style="margin:0; color: #c53030; font-weight: bold;"><strong>Devolução Máxima:</strong> <span id="infoDataFim"></span></p>
+            <div style="margin-bottom: 20px;">
+                <input type="text" id="inputBuscaAluguelModal" placeholder="Buscar por aluno, CPF ou carimbo..." 
+                    style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none;">
             </div>
-            
-            <button class="btn-save" style="margin-top: 20px; background: #4b5563; width: 100%;" onclick="fecharModalEmprestimoInfo()">Fechar</button>
+
+            <div id="listaAlugueisCorpo" style="max-height: 450px; overflow-y: auto; padding-right: 5px;">
+                </div>
+
+            <div class="modal-buttons" style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+                <button class="btn-save" style="width: 100%; background: #64748b;" onclick="document.getElementById('modalListaAlugueis').style.display='none'">Fechar Lista</button>
+            </div>
         </div>
     </div>
 
+
+
     <script type="module" src="../js/livros.js"></script>
-    <script type="module" src="../js/dashboard.js"></script>
 </body>
 </html>

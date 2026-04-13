@@ -5,11 +5,17 @@ import {
     query, where, updateDoc, addDoc 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// --- 1. VARIÁVEIS GLOBAIS ---
+/**
+ * --- 1. VARIÁVEIS GLOBAIS ---
+ * Armazenam o estado local da aplicação para busca e controle de acesso.
+ */
 let todosOsLivros = [];
-let tipoUsuario = String(localStorage.getItem('tipoUsuario') || "").replace(/["']/g, "").trim().toLowerCase(); 
+let tipoUsuario = String(localStorage.getItem('tipoUsuario') || "").replace(/["']/g, "").trim().toLowerCase();
 
-// --- 2. AUTENTICAÇÃO ---
+/**
+ * --- 2. AUTENTICAÇÃO E CONTROLE DE ACESSO ---
+ * Monitora se o usuário está logado e define as permissões (Admin ou Usuário).
+ */
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         try {
@@ -28,180 +34,183 @@ onAuthStateChanged(auth, async (user) => {
                 carregarDadosDoFirebase();
             }
         } catch (error) { console.error("Erro na autenticação:", error); }
-    } else { window.location.href = "../index.html"; }
+    } else { 
+        window.location.href = "../index.html"; 
+    }
 });
 
+/**
+ * --- 3. INICIALIZAÇÃO DA INTERFACE ---
+ * Configura eventos após o carregamento do HTML.
+ */
 document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('form-cadastrar-livro');
+    if (form) {
+        form.addEventListener('submit', cadastrarOuAtualizarLivro);
+    }
     setupFiltros();
     aplicarMascaraCPFAluguel();
 
-    const formCadastro = document.getElementById('formCadastrarLivro');
-    if (formCadastro) formCadastro.addEventListener('submit', cadastrarOuAtualizarLivro);
-
-    const formEmprestimo = document.getElementById('formEmprestimo');
-    if (formEmprestimo) formEmprestimo.addEventListener('submit', salvarEmprestimoNoFirebase);
+    // Evento do botão de confirmação de empréstimo dentro do modal
+    const btnConfirmar = document.getElementById('btnConfirmarEmprestimo');
+    if (btnConfirmar) {
+        btnConfirmar.addEventListener('click', salvarEmprestimoNoFirebase);
+    }
 });
 
-// --- 3. UTILITÁRIOS ---
+/**
+ * --- 4. UTILITÁRIOS DE MATRÍCULA ---
+ * Gera IDs únicos (LIB-001) para cada exemplar físico do livro.
+ */
 async function gerarProximasMatriculas(quantidade) {
     const contadorRef = doc(db, "configuracoes", "contadores");
-    let ultimoNumero = 0;
-
     try {
         const snap = await getDoc(contadorRef);
-        
-        if (snap.exists()) {
-            ultimoNumero = snap.data().ultimoIdLivro || 0;
-        } else {
-            // Se não existir, o código cria o documento automaticamente agora
-            await addDoc(collection(db, "configuracoes"), { ultimoIdLivro: 0 });
-        }
+        let ultimoNumero = snap.exists() ? (Number(snap.data().ultimoIdLivro) || 0) : 0;
 
         let matriculas = [];
         for (let i = 1; i <= quantidade; i++) {
             const novoNumero = ultimoNumero + i;
-            const idFormatado = `LIB-${String(novoNumero).padStart(3, '0')}`;
-            matriculas.push(idFormatado);
+            matriculas.push(`LIB-${String(novoNumero).padStart(3, '0')}`);
         }
 
-        // Atualiza para o próximo
+        // Atualiza o contador global no Firebase
         await updateDoc(contadorRef, { ultimoIdLivro: ultimoNumero + quantidade });
         return matriculas;
-
     } catch (e) {
-        // Caso a coleção nem exista, ele tenta criar o primeiro registro
-        console.log("Criando coleção de contadores pela primeira vez...");
-        await addDoc(collection(db, "configuracoes"), { ultimoIdLivro: quantidade });
-        return Array.from({length: quantidade}, (_, i) => `LIB-${String(i+1).padStart(3, '0')}`);
+        console.error("Erro ao gerar IDs:", e);
+        return [];
     }
 }
 
-// --- 4. CADASTRO (CORRIGIDO) ---
+/**
+ * --- 5. CADASTRO E ATUALIZAÇÃO ---
+ * Cria um novo livro ou adiciona exemplares a um livro já existente.
+ */
 async function cadastrarOuAtualizarLivro(e) {
     e.preventDefault();
-
-    const tituloNormal = document.getElementById('titulo').value.trim();
-    const autorNormal = document.getElementById('autor').value.trim();
-    const qtdInformada = Number(document.getElementById('quantidade').value) || 0; // Nome corrigido
+    const titulo = document.getElementById('titulo').value.trim();
+    const autor = document.getElementById('autor').value.trim();
+    const quantidadeDigitada = parseInt(document.getElementById('quantidade').value) || 0;
+    const sinopse = document.getElementById('sinopse').value.trim();
 
     try {
-        const q = query(collection(db, "livros"), 
-                        where("titulo_search", "==", tituloNormal.toUpperCase()), 
-                        where("autor_search", "==", autorNormal.toUpperCase()));
-        
-        const snap = await getDocs(q);
-        let novasMatriculas = [];
-        
-        // Loop corrigido: usando qtdInformada
-        for(let i=0; i < qtdInformada; i++) {
-            novasMatriculas.push(gerarMatriculaUnica());
-        }
+        // 1. Gera as matrículas/IDs
+        const novasMatriculas = await gerarProximasMatriculas(quantidadeDigitada);
+        const livrosRef = collection(db, "livros");
+        const q = query(livrosRef, where("titulo", "==", titulo), where("autor", "==", autor));
+        const querySnapshot = await getDocs(q);
 
-        if (!snap.empty) {
-            const docExistente = snap.docs[0];
-            const ref = doc(db, "livros", docExistente.id);
-            const dadosAtuais = docExistente.data();
-            const listaAtualizada = [...(dadosAtuais.exemplaresDisponiveis || []), ...novasMatriculas];
-
+        if (!querySnapshot.empty) {
+            const docSnap = querySnapshot.docs[0];
+            const ref = doc(db, "livros", docSnap.id);
+            const dados = docSnap.data();
             await updateDoc(ref, {
-                quantidade: listaAtualizada.length, 
-                exemplaresDisponiveis: listaAtualizada,
-                status: "Disponível"
+                quantidade: (Number(dados.quantidade) || 0) + quantidadeDigitada,
+                quantidadeDisponivel: (Number(dados.quantidadeDisponivel) || 0) + quantidadeDigitada,
+                exemplaresDisponiveis: [...(dados.exemplaresDisponiveis || []), ...novasMatriculas]
             });
         } else {
-            await addDoc(collection(db, "livros"), {
-                titulo: tituloNormal,
-                autor: autorNormal,
-                titulo_search: tituloNormal.toUpperCase(),
-                autor_search: autorNormal.toUpperCase(),
-                quantidade: qtdInformada,
-                exemplaresDisponiveis: novasMatriculas, 
-                status: "Disponível",
-                capa: document.getElementById('capa')?.value || '../img/default-book.png',
-                alugueisAtivos: []
-            });
+            const novoLivro = {
+                titulo, autor, sinopse,
+                quantidade: quantidadeDigitada,
+                quantidadeDisponivel: quantidadeDigitada,
+                quantidadeEmprestada: 0,
+                exemplaresDisponiveis: novasMatriculas,
+                alugueisAtivos: [],
+                capa: "../img/default-book.png",
+                dataCadastro: new Date().toISOString()
+            };
+            await addDoc(livrosRef, novoLivro);
         }
 
-        exibirModalCarimbo(tituloNormal, novasMatriculas);
+        // 2. MOSTRAR MODAL COM OS IDS GERADOS
+        mostrarModalIdsGerados(titulo, novasMatriculas);
+
+        e.target.reset();
         carregarDadosDoFirebase();
-    } catch (err) { console.error("Erro ao salvar:", err); }
+    } catch (error) {
+        console.error("Erro no cadastro:", error);
+        alert("Erro ao cadastrar livro.");
+    }
 }
 
-// --- 5. RENDERIZAÇÃO ---
+/**
+ * --- 6. RENDERIZAÇÃO E BUSCA ---
+ * Busca os livros no Firebase e desenha na tabela (admin) ou nos cards (usuário).
+ */
+// --- 5. RENDERIZAÇÃO COM AUTO-CORREÇÃO ---
 async function carregarDadosDoFirebase() {
-    const corpoTabela = document.getElementById('tabelaLivrosCorpo');
+    const corpoTabela = document.getElementById('tabelaLivrosCorpo'); // Visão Admin
+    const containerCards = document.getElementById('container-cards-livros'); // Visão Usuário
+    const areaAdminCadastro = document.getElementById('area-admin-cadastro'); // Botão/Link de Cadastro
+    const visaoAdminTabela = document.getElementById('visao-admin'); // Container da tabela completa
+
+    // Limpa a role de aspas extras e espaços
+    const role = String(localStorage.getItem('tipoUsuario') || "").replace(/["']/g, "").trim().toLowerCase();
+    const isAdmin = (role === 'admin');
+
+    // 1. ORGANIZAÇÃO DA INTERFACE (Esconde o que não deve ser visto)
+    if (isAdmin) {
+        if (containerCards) containerCards.style.display = 'none'; // Admin não vê cards
+        if (visaoAdminTabela) visaoAdminTabela.style.display = 'block';
+        if (areaAdminCadastro) areaAdminCadastro.style.display = 'block';
+    } else {
+        if (containerCards) containerCards.style.display = 'grid'; // Ou 'flex' conforme seu CSS
+        if (visaoAdminTabela) visaoAdminTabela.style.display = 'none'; // Usuário não vê tabela
+        if (areaAdminCadastro) areaAdminCadastro.style.display = 'none';
+    }
+
     const snap = await getDocs(collection(db, "livros"));
     todosOsLivros = [];
-    corpoTabela.innerHTML = "";
 
-    snap.forEach(async (docSnap) => {
-        let data = docSnap.data();
-        let livroId = docSnap.id;
+    // 2. LIMPEZA DOS DADOS ANTERIORES
+    if (corpoTabela) corpoTabela.innerHTML = "";
+    if (containerCards) containerCards.innerHTML = "";
 
-        // --- O CONSERTO AUTOMÁTICO ACONTECE AQUI ---
-        let exemplares = data.exemplaresDisponiveis || [];
-        let qtdNoBanco = Number(data.quantidade) || 0;
+    snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const livro = { 
+            id: docSnap.id, 
+            ...data,
+            quantidade: Number(data.quantidade || 0),
+            quantidadeDisponivel: Number(data.quantidadeDisponivel || 0)
+        };
+        
+        todosOsLivros.push(livro);
 
-        // Se o livro tem quantidade mas o array está sumido (Erro de esgotado)
-        if (exemplares.length === 0 && qtdNoBanco > 0) {
-            console.log(`Corrigindo livro: ${data.titulo}`);
-            exemplares = await gerarProximasMatriculas(qtdNoBanco);
-            
-            // Salva o conserto no Firebase automaticamente
-            await updateDoc(doc(db, "livros", livroId), {
-                exemplaresDisponiveis: exemplares
-            });
+        // 3. RENDERIZAÇÃO ESPECÍFICA
+        if (isAdmin) {
+            if (corpoTabela) renderizarLinhaTabela(livro);
+        } else {
+            if (containerCards) renderizarCardUsuario(livro);
         }
-
-        const livroCompleto = { id: livroId, ...data, exemplaresDisponiveis: exemplares };
-        todosOsLivros.push(livroCompleto);
-        renderizarLinhaTabela(livroCompleto);
     });
 }
 
 function renderizarLinhaTabela(l) {
     const corpo = document.getElementById('tabelaLivrosCorpo');
     if (!corpo) return;
-    
-    // 1. Garantimos que estamos lendo números para evitar erros de exibição
-    const total = Number(l.quantidade || 0);
-    const disponiveis = Number(l.quantidadeDisponivel || 0);
-    
-    // 2. A lógica de disponibilidade agora é baseada no contador numérico
+
+    const disponiveis = l.quantidadeDisponivel;
     const isDisponivel = disponiveis > 0;
 
     const tr = document.createElement('tr');
     tr.setAttribute('data-id', l.id);
-    
     tr.innerHTML = `
-        <td><img src="${l.capa}" style="width:40px;height:50px;object-fit:cover;"></td>
+        <td><img src="${l.capa || '../img/default-book.png'}" style="width:40px;height:50px;object-fit:cover;border-radius:4px;"></td>
         <td><strong>${l.titulo}</strong></td>
         <td>${l.autor}</td>
         <td>
-            <span class="${isDisponivel ? 'status-livre' : 'status-alugado'}" 
-                  style="color: ${isDisponivel ? '#10b981' : '#ef4444'}; font-weight: bold;">
-                ${isDisponivel ? `Disponível (${disponiveis}/${total})` : `Esgotado (0/${total})`}
+            <span style="color: ${isDisponivel ? '#10b981' : '#ef4444'}; font-weight: bold;">
+                ${isDisponivel ? `Disponível (${disponiveis}/${l.quantidade})` : `Esgotado (0/${l.quantidade})`}
             </span>
         </td>
         <td>
-            <button class="btn edit" 
-                    onclick="window.abrirModalEmprestimo('${l.id}')" 
-                    ${!isDisponivel ? 'disabled style="background:#ccc; cursor:not-allowed;"' : ''}>
-                Alugar
-            </button>
-            
-            <button class="btn" 
-                    style="background:#2563eb; color:white;" 
-                    onclick="window.verListaAlugueis('${l.id}')">
-                Ver Aluguéis
-            </button>
-            
-            <button class="btn delete" 
-                    onclick="window.excluirLivro('${l.id}')">
-                Excluir
-            </button>
+            <button class="btn edit" onclick="window.abrirModalEmprestimo('${l.id}')" ${!isDisponivel ? 'disabled style="background:#ccc; cursor:not-allowed;"' : ''}>Alugar</button>
+            <button class="btn" style="background:#2563eb; color:white;" onclick="window.verListaAlugueis('${l.id}')">Ver Aluguéis</button>
+            <button class="btn delete" onclick="window.excluirLivro('${l.id}')">Excluir</button>
         </td>`;
-        
     corpo.appendChild(tr);
 }
 
@@ -209,26 +218,24 @@ function renderizarCardUsuario(l) {
     const container = document.getElementById('container-cards-livros');
     if (!container) return;
 
-    const disponivel = l.exemplaresDisponiveis.length > 0;
+    const disponivel = Number(l.quantidadeDisponivel || 0) > 0;
     const card = document.createElement('div');
     card.className = 'book-card-v2';
-    card.setAttribute('data-id', l.id);
-    card.onclick = () => typeof window.abrirDetalhesLivro === 'function' ? window.abrirDetalhesLivro(l.id) : null;
-
     card.innerHTML = `
-        <img src="${l.capa}" alt="${l.titulo}" class="book-cover-v2">
+        <img src="${l.capa}" class="book-cover-v2">
         <div class="book-info">
             <h3>${l.titulo}</h3>
             <p>${l.autor}</p>
-            <span class="${disponivel ? 'status-livre' : 'status-alugado'}">
-                ${disponivel ? 'Disponível' : 'Esgotado'} 
-            </span>
-            <small>(${l.exemplaresDisponiveis.length} un.)</small>
+            <span class="${disponivel ? 'status-livre' : 'status-alugado'}">${disponivel ? 'Disponível' : 'Esgotado'}</span>
+            <small>(${l.quantidadeDisponivel} un.)</small>
         </div>`;
     container.appendChild(card);
 }
 
-// --- 7. FILTROS E BUSCA ---
+/**
+ * --- 7. FILTROS ---
+ * Filtra os livros por título, autor, gênero ou status.
+ */
 function setupFiltros() {
     document.getElementById('inputBusca')?.addEventListener('input', filtrarLivros);
     document.getElementById('filtroGenero')?.addEventListener('change', filtrarLivros);
@@ -237,297 +244,186 @@ function setupFiltros() {
 
 function filtrarLivros() {
     const termo = document.getElementById('inputBusca').value.toLowerCase();
-    const generoSelecionado = document.getElementById('filtroGenero').value;
-    const statusSelecionado = document.getElementById('filtroStatus').value;
+    const generoSel = document.getElementById('filtroGenero').value;
+    const statusSel = document.getElementById('filtroStatus').value;
 
     todosOsLivros.forEach(l => {
-        const elemento = document.querySelector(`tr[data-id="${l.id}"]`) || 
-                         document.querySelector(`.book-card-v2[data-id="${l.id}"]`);
-        if (!elemento) return;
+        const tr = document.querySelector(`tr[data-id="${l.id}"]`);
+        if (!tr) return;
 
-        const atendeTexto = l.titulo.toLowerCase().includes(termo) || l.autor.toLowerCase().includes(termo);
-        const atendeGenero = generoSelecionado === "Todos" || (l.generos && l.generos.includes(generoSelecionado));
-        
-        const disponivel = l.exemplaresDisponiveis.length > 0;
-        let atendeStatus = true;
-        if (statusSelecionado === "Disponível") atendeStatus = disponivel;
-        if (statusSelecionado === "Alugado") atendeStatus = !disponivel;
+        const matchesTexto = l.titulo.toLowerCase().includes(termo) || l.autor.toLowerCase().includes(termo);
+        const matchesGenero = generoSel === "Todos" || (l.generos && l.generos.includes(generoSel));
+        const disponivel = Number(l.quantidadeDisponivel) > 0;
+        const matchesStatus = statusSel === "Todos" || (statusSel === "Disponível" ? disponivel : !disponivel);
 
-        elemento.style.display = (atendeTexto && atendeGenero && atendeStatus) ? "" : "none";
+        tr.style.display = (matchesTexto && matchesGenero && matchesStatus) ? "" : "none";
     });
 }
 
 function atualizarOpcoesFiltroGenero() {
-    const filtroGenero = document.getElementById('filtroGenero');
-    if (!filtroGenero) return;
-
+    const filtro = document.getElementById('filtroGenero');
+    if (!filtro) return;
     const generosSet = new Set();
     todosOsLivros.forEach(livro => {
         if (Array.isArray(livro.generos)) livro.generos.forEach(g => generosSet.add(g));
     });
-
-    filtroGenero.innerHTML = '<option value="Todos">Todos os Gêneros</option>';
-    generosSet.forEach(genero => {
-        const option = document.createElement('option');
-        option.value = genero;
-        option.textContent = genero;
-        filtroGenero.appendChild(option);
-    });
+    filtro.innerHTML = '<option value="Todos">Todos os Gêneros</option>';
+    generosSet.forEach(g => filtro.innerHTML += `<option value="${g}">${g}</option>`);
 }
 
-// --- 8. LÓGICA DE EMPRÉSTIMOS E DEVOLUÇÕES ---
-async function salvarEmprestimoNoFirebase(e) {
-    e.preventDefault();
-    
-    try {
-        const idLivro = document.getElementById('idLivroModal').value;
-        const nomeUser = document.getElementById('info-nome').innerText;
-        const emailUser = document.getElementById('info-email').innerText;
-        // Capturando o telefone que adicionamos ao HTML para o histórico
-        const telefoneUser = document.getElementById('info-telefone')?.innerText || "Não informado";
-
-        if (!nomeUser || nomeUser === "") {
-            alert("Por favor, busque um usuário válido por CPF primeiro.");
-            return;
-        }
-
-        const livroRef = doc(db, "livros", idLivro);
-        const livroSnap = await getDoc(livroRef);
-        
-        if (!livroSnap.exists()) return;
-        const dados = livroSnap.data();
-
-        // 1. Garantir que tratamos os números como Number para evitar o erro de NaN
-        const qtdDisponivelAtual = Number(dados.quantidadeDisponivel || 0);
-        const qtdEmprestadaAtual = Number(dados.quantidadeEmprestada || 0);
-
-        // 2. Verificação de segurança robusta
-        if (qtdDisponivelAtual <= 0 || !dados.exemplaresDisponiveis || dados.exemplaresDisponiveis.length === 0) {
-            alert("Impossível realizar empréstimo: Livro Esgotado!");
-            fecharModalEmprestimo();
-            return;
-        }
-
-        // 3. Manipulação do Array (Tirando da estante)
-        let novosDisponiveis = [...dados.exemplaresDisponiveis];
-        const matriculaAlugada = novosDisponiveis.shift(); 
-
-        // 4. ATUALIZAÇÃO SINCRONIZADA
-        // A quantidade disponível DEVE ser o tamanho do array resultante
-        await updateDoc(livroRef, {
-            exemplaresDisponiveis: novosDisponiveis,
-            quantidadeDisponivel: novosDisponiveis.length, 
-            quantidadeEmprestada: qtdEmprestadaAtual + 1,
-            alugueisAtivos: [...(dados.alugueisAtivos || []), {
-                idExemplar: matriculaAlugada,
-                nome: nomeUser,
-                email: emailUser,
-                telefone: telefoneUser,
-                dataEmprestimo: new Date().toLocaleDateString('pt-BR'),
-                // Data de devolução prevista (15 dias)
-                dataDevolucao: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR')
-            }]
-        });
-
-        alert(`Empréstimo realizado! Exemplar: ${matriculaAlugada}`);
-        fecharModalEmprestimo();
-        
-        // Limpar campos de busca para o próximo
-        document.getElementById('inputUsuarioBusca').value = "";
-        document.getElementById('detalhesUsuario').style.display = 'none';
-        
-        carregarDadosDoFirebase();
-
-    } catch (error) {
-        console.error("Erro ao salvar empréstimo:", error);
-        alert("Erro técnico ao registrar no banco de dados.");
-    }
-}
-
-window.confirmarDevolucaoEspecifica = async (idLivro, idExemplar) => {
-    if (!confirm(`Confirmar devolução do exemplar ${idExemplar}?`)) return;
+/**
+ * --- 9. DEVOLUÇÃO ---
+ * Retorna o exemplar para a lista de disponíveis e recalcula o estoque.
+ */
+window.confirmarDevolucaoEspecifica = async (idLivro, carimbo) => {
+    if (!confirm(`Devolver exemplar ${carimbo}?`)) return;
 
     try {
         const ref = doc(db, "livros", idLivro);
         const snap = await getDoc(ref);
         const dados = snap.data();
 
-        // 1. Remove o locatário da lista
-        const novosAlugueis = (dados.alugueisAtivos || []).filter(a => a.idExemplar !== idExemplar);
+        // CORREÇÃO: Filtra usando 'carimbo', que é o nome no seu Firebase
+        const novosAlugueis = (dados.alugueisAtivos || []).filter(a => a.carimbo !== carimbo);
         
-        // 2. Devolve o ID para a estante (sem duplicar)
-        let listaDisponiveis = [...(dados.exemplaresDisponiveis || [])];
-        if (!listaDisponiveis.includes(idExemplar)) {
-            listaDisponiveis.push(idExemplar);
+        let listaDisp = [...(dados.exemplaresDisponiveis || [])];
+        // Adiciona de volta à lista de disponíveis se não estiver lá
+        if (!listaDisp.includes(carimbo)) {
+            listaDisp.push(carimbo);
         }
-
-        // 3. CÁLCULO REAL (Subtração do Total)
-        // Isso impede que o sistema invente que tem 2/2 se ainda houver gente com o livro
-        const totalLivros = Number(dados.quantidade || 2);
-        const qtdAindaAlugada = novosAlugueis.length;
-        
-        const disponivelFinal = totalLivros - qtdAindaAlugada;
 
         await updateDoc(ref, {
             alugueisAtivos: novosAlugueis,
-            exemplaresDisponiveis: listaDisponiveis,
-            quantidadeDisponivel: disponivelFinal, // Se sobrar 1 alugado, aqui será 1 obrigatoriamente
-            quantidadeEmprestada: qtdAindaAlugada
+            exemplaresDisponiveis: listaDisp,
+            quantidadeDisponivel: listaDisp.length, // Atualiza a contagem real
+            quantidadeEmprestada: novosAlugueis.length
         });
 
-        alert("Devolução processada!");
-        fecharModalEmprestimoInfo();
-        carregarDadosDoFirebase();
+        alert("Devolução concluída!");
+        
+        // Fecha o modal de lista se ele estiver aberto
+        const modalLista = document.getElementById('modalListaAlugueis');
+        if (modalLista) modalLista.style.display = 'none';
 
-    } catch (error) {
-        console.error("Erro crítico na devolução:", error);
+        // ATUALIZAÇÃO CRÍTICA: Recarrega os dados para refletir na tela
+        await carregarDadosDoFirebase();
+    } catch (e) { 
+        console.error("Erro ao devolver:", e);
+        alert("Erro técnico ao processar devolução.");
     }
 };
 
-// --- 9. MODAIS E UTILITÁRIOS DE INTERFACE ---
-function exibirModalCarimbo(titulo, lista) {
-    const modalExistente = document.getElementById('modalCarimbo');
-    if(modalExistente) modalExistente.remove();
-
-    const modalHTML = `
-        <div id="modalCarimbo" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:10000;">
-            <div style="background:white; padding:30px; border-radius:12px; max-width:450px; width:90%; text-align:center;">
-                <h2 style="color:#059669;">✔ Concluído!</h2>
-                <p>Matrículas geradas para: <strong>${titulo}</strong></p>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin:20px 0; max-height:200px; overflow-y:auto;">
-                    ${lista.map(m => `<div style="background:#f3f4f6; padding:8px; border-radius:6px; font-weight:bold; color:#2563eb; border:1px solid #d1d5db;">${m}</div>`).join('')}
-                </div>
-                <button onclick="document.getElementById('modalCarimbo').remove()" style="width:100%; background:#2563eb; color:white; border:none; padding:12px; border-radius:8px; cursor:pointer;">Fechar</button>
-            </div>
-        </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-}
-
-// --- CORREÇÃO DEFINITIVA DO BOTÃO ALUGAR ---
+/**
+ * --- 10. MODAIS E UTILITÁRIOS ---
+ */
 window.abrirModalEmprestimo = (id) => {
     const livro = todosOsLivros.find(l => l.id === id);
     if (!livro) return;
 
-    const modal = document.getElementById('modalEmprestimo');
-    if (modal) {
-        // Preenche o ID escondido para o formulário saber qual livro é
-        document.getElementById('idLivroModal').value = id;
-        
-        // Preenche o nome do livro no título do modal (ID do seu HTML)
-        const labelTitulo = document.getElementById('nomeLivroModal');
-        if (labelTitulo) labelTitulo.innerText = livro.titulo;
+    // --- 1. LIMPEZA DE ESTADO (Evita mostrar dados do aluno anterior) ---
+    const inputBusca = document.getElementById('inputUsuarioBusca');
+    const idUsuarioOculto = document.getElementById('idUsuarioAluguel');
+    const infoNome = document.getElementById('info-nome');
+    const infoEmail = document.getElementById('info-email');
+    const detalhesArea = document.getElementById('detalhesUsuario');
+    const btnConfirmar = document.getElementById('btnConfirmarEmprestimo');
 
-        // Reseta o modal para uma nova busca
-        document.getElementById('detalhesUsuario').style.display = 'none';
-        document.getElementById('inputUsuarioBusca').value = "";
+    if (inputBusca) inputBusca.value = "";
+    if (idUsuarioOculto) idUsuarioOculto.value = "";
+    if (infoNome) infoNome.innerText = "";
+    if (infoEmail) infoEmail.innerText = "";
+    if (detalhesArea) detalhesArea.style.display = 'none';
+    if (btnConfirmar) btnConfirmar.disabled = true; // Só libera após achar novo CPF
+
+    // --- 2. PREENCHIMENTO DOS DADOS DO LIVRO ---
+    document.getElementById('idLivroModal').value = id;
+    document.getElementById('nomeLivroModal').innerText = livro.titulo;
+
+    const select = document.getElementById('selectIdExemplar');
+    if (select) {
+        select.innerHTML = '<option value="">Escolha o carimbo...</option>';
         
-        modal.style.display = 'flex';
+        if (livro.exemplaresDisponiveis && livro.exemplaresDisponiveis.length > 0) {
+            livro.exemplaresDisponiveis.forEach(idEx => {
+                const option = document.createElement('option');
+                option.value = idEx;
+                option.textContent = idEx;
+                select.appendChild(option);
+            });
+        } else {
+            select.innerHTML = '<option value="">Nenhum exemplar disponível</option>';
+        }
     }
+
+    // --- 3. EXIBIÇÃO DO MODAL ---
+    document.getElementById('modalEmprestimo').style.display = 'flex';
 };
 
-
-// Garante que o fechar também funciona globalmente
-window.fecharModalEmprestimo = () => {
-    document.getElementById('modalEmprestimo').style.display = 'none';
-};
-
-window.fecharModalEmprestimoInfo = () => document.getElementById('modalDetalhesEmprestimo').style.display = 'none';
-
-// --- FUNÇÃO DE EXCLUSÃO (DEFINIDA COMO GLOBAL) ---
-window.excluirLivro = async (id) => {
-    if (!confirm("Tem certeza que deseja excluir este livro permanentemente? Todas as matrículas e registros de aluguel serão perdidos.")) return;
-
-    try {
-        const livroRef = doc(db, "livros", id);
-        await deleteDoc(livroRef);
-        
-        console.log("Livro excluído com sucesso:", id);
-        
-        // Atualiza a interface localmente removendo o elemento para ser mais rápido
-        const elemento = document.querySelector(`tr[data-id="${id}"]`) || 
-                         document.querySelector(`.book-card-v2[data-id="${id}"]`);
-        if (elemento) elemento.remove();
-
-        // Recarrega os dados do Firebase para garantir sincronia
-        carregarDadosDoFirebase();
-        
-    } catch (error) {
-        console.error("Erro ao excluir livro:", error);
-        alert("Erro ao excluir o livro. Verifique o console.");
-    }
-};
-
-// --- 6. LISTAGEM DE ALUGUÉIS ATUALIZADA (MODAL BONITO) ---
-window.verListaAlugueis = async (id) => {
+window.verListaAlugueis = (id) => {
     const livro = todosOsLivros.find(l => l.id === id);
     if (!livro) return;
 
-    const modal = document.getElementById('modalDetalhesEmprestimo');
-    const container = modal.querySelector('.modal-content') || modal;
-    
-    // Cabeçalho do Modal
-    let html = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-            <h2 style="margin:0; color:#1e293b; font-size: 1.5rem;">Aluguéis Ativos</h2>
-            <span style="cursor:pointer; font-size: 28px; color: #64748b;" onclick="window.fecharModalEmprestimoInfo()">&times;</span>
-        </div>
-        <p style="margin-bottom: 20px; color: #2563eb; font-weight: 600;">📖 ${livro.titulo}</p>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 20px;">
-    `;
-    
-    if (livro.alugueisAtivos.length === 0) {
-        html += `<p style="text-align:center; color:#94a3b8; padding: 20px;">Nenhum exemplar alugado no momento.</p>`;
-    } else {
-        // Criar um card para cada aluguel ativo
-        livro.alugueisAtivos.forEach(a => {
-            // Lógica simples para destacar se a devolução é hoje ou passou (opcional)
-            const dataHoje = new Date().toLocaleDateString('pt-BR');
-            const ehUrgente = a.dataDevolucao === dataHoje;
+    const modal = document.getElementById('modalListaAlugueis');
+    const container = document.getElementById('listaAlugueisCorpo');
+    const inputBusca = document.getElementById('inputBuscaAluguelModal');
 
-            html += `
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <span style="background: #dbeafe; color: #1e40af; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold;">
-                            Matrícula: ${a.idExemplar}
+    // Função para gerar o HTML dos CARDS
+    const renderizarCards = (alugueis) => {
+        if (!alugueis || alugueis.length === 0) {
+            return `<div style="text-align:center; padding:40px; color:#94a3b8;">
+                        <p>Nenhum aluguel ativo encontrado.</p>
+                    </div>`;
+        }
+
+        return alugueis.map(a => `
+            <div class="card-aluguel" style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                        <span style="background: #dbeafe; color: #1e40af; font-size: 12px; font-weight: bold; padding: 2px 8px; border-radius: 4px;">
+                            ${a.carimbo || 'S/ID'}
                         </span>
-                        <span style="font-size: 12px; color: ${ehUrgente ? '#ef4444' : '#64748b'}; font-weight: bold;">
-                            📅 Devolução: ${a.dataDevolucao}
+                        <span style="color: #64748b; font-size: 12px;">
+                            📅 ${a.dataEmprestimo ? new Date(a.dataEmprestimo).toLocaleDateString('pt-BR') : '--/--/--'}
                         </span>
                     </div>
-
-                    <div style="margin-bottom: 12px;">
-                        <h4 style="margin: 0 0 5px 0; color: #1e293b;">${a.nome}</h4>
-                        <p style="margin: 0; font-size: 13px; color: #64748b;">📧 ${a.email || 'E-mail não informado'}</p>
-                        <p style="margin: 0; font-size: 13px; color: #64748b;">📞 ${a.telefone || '(00) 00000-0000'}</p>
-                    </div>
-
-                    <div style="display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #edf2f7; pt: 10px;">
-                         <button class="btn delete" style="flex: 1; margin-top: 10px; padding: 8px; font-size: 13px;" 
-                            onclick="window.confirmarDevolucaoEspecifica('${livro.id}', '${a.idExemplar}')">
-                            📥 Dar Baixa (Devolver)
-                        </button>
-                    </div>
+                    <h4 style="margin: 0; color: #1e293b; font-size: 15px;">${a.usuarioNome || 'Usuário Desconhecido'}</h4>
+                    <p style="margin: 3px 0 0 0; color: #64748b; font-size: 13px;">CPF: ${a.usuarioCpf || 'Não informado'}</p>
                 </div>
-            `;
-        });
-    }
+                <button class="btn delete" style="padding: 8px 12px; font-size: 12px;" 
+                    onclick="window.confirmarDevolucaoEspecifica('${livro.id}', '${a.carimbo}')">
+                    Dar Baixa
+                </button>
+            </div>
+        `).join('');
+    };
 
-    container.innerHTML = html;
+    // Renderização inicial
+    container.innerHTML = renderizarCards(livro.alugueisAtivos);
+
+    // Lógica de Busca em Tempo Real
+    inputBusca.value = ""; // Limpa busca anterior
+    inputBusca.oninput = (e) => {
+        const termo = e.target.value.toLowerCase();
+        const filtrados = (livro.alugueisAtivos || []).filter(a => 
+            (a.usuarioNome && a.usuarioNome.toLowerCase().includes(termo)) || 
+            (a.carimbo && a.carimbo.toLowerCase().includes(termo)) ||
+            (a.usuarioCpf && a.usuarioCpf.includes(termo))
+        );
+        container.innerHTML = renderizarCards(filtrados);
+    };
+
     modal.style.display = 'flex';
 };
 
-// Aproveite e garanta que a função de fechar também seja global
-window.fecharModalEmprestimoInfo = () => {
-    document.getElementById('modalDetalhesEmprestimo').style.display = 'none';
-};
+window.fecharModalEmprestimo = () => document.getElementById('modalEmprestimo').style.display = 'none';
+window.fecharModalEmprestimoInfo = () => document.getElementById('modalDetalhesEmprestimo').style.display = 'none';
 
 function configurarLayoutPorCargo() {
+    const isAdmin = tipoUsuario === 'admin';
     const btnAdd = document.getElementById('btn-admin-add');
-    const areaTabela = document.getElementById('area-admin-tabela');
-    if (tipoUsuario === 'admin') {
-        if (btnAdd) btnAdd.style.display = 'block';
-        if (areaTabela) areaTabela.style.display = 'block';
-    }
+    const areaTab = document.getElementById('area-admin-tabela');
+    if (btnAdd) btnAdd.style.display = isAdmin ? 'block' : 'none';
+    if (areaTab) areaTab.style.display = isAdmin ? 'block' : 'none';
 }
 
 function aplicarMascaraCPFAluguel() {
@@ -535,9 +431,9 @@ function aplicarMascaraCPFAluguel() {
     if (!input) return;
     input.addEventListener('input', (e) => {
         let v = e.target.value.replace(/\D/g, "").slice(0, 11);
-        if (v.length >= 4 && v.length <= 6) v = v.replace(/(\d{3})(\d)/, "$1.$2");
-        else if (v.length >= 7 && v.length <= 9) v = v.replace(/(\d{3})(\d{3})(\d)/, "$1.$2.$3");
-        else if (v.length >= 10) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d)/, "$1.$2.$3-$4");
+        if (v.length >= 10) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d)/, "$1.$2.$3-$4");
+        else if (v.length >= 7) v = v.replace(/(\d{3})(\d{3})(\d)/, "$1.$2.$3");
+        else if (v.length >= 4) v = v.replace(/(\d{3})(\d)/, "$1.$2");
         e.target.value = v;
         if (v.length === 14) buscarUsuarioPorCPF(v);
     });
@@ -546,34 +442,165 @@ function aplicarMascaraCPFAluguel() {
 async function buscarUsuarioPorCPF(cpf) {
     const detalhesDiv = document.getElementById('detalhesUsuario');
     const btnConfirmar = document.getElementById('btnConfirmarEmprestimo');
-    
-    // Limpa campos antes da busca para não mostrar dados do usuário anterior
-    document.getElementById('info-nome').innerText = "";
-    document.getElementById('info-email').innerText = "";
-    if(document.getElementById('info-telefone')) document.getElementById('info-telefone').innerText = "";
-    detalhesDiv.style.display = 'none';
-    btnConfirmar.disabled = true;
-
     try {
         const q = query(collection(db, "usuarios"), where("cpf", "==", cpf));
         const snap = await getDocs(q);
-
         if (!snap.empty) {
             const user = snap.docs[0].data();
-            document.getElementById('info-nome').innerText = user.nome || "Não informado";
-            document.getElementById('info-email').innerText = user.email || "Não informado";
-            
-            const elTel = document.getElementById('info-telefone');
-            if (elTel) elTel.innerText = user.telefone || "Não informado";
-
+            document.getElementById('info-nome').innerText = user.nome;
+            document.getElementById('info-email').innerText = user.email;
             detalhesDiv.style.display = 'block';
             btnConfirmar.disabled = false;
         } else {
-            alert("CPF inexistente ou não cadastrado!");
-            document.getElementById('inputUsuarioBusca').value = ""; // Limpa o input
+            alert("CPF não encontrado.");
+            detalhesDiv.style.display = 'none';
+            btnConfirmar.disabled = true;
         }
+    } catch (e) { console.error(e); }
+}
+
+// ---- CONFIRMAR EMPRESTIMO ----
+
+async function confirmarEmprestimo(e) {
+    if(e) e.preventDefault();
+
+    // 1. Captura os IDs dos elementos
+    const idLivro = document.getElementById('idLivroModal').value;
+    const carimboSelecionado = document.getElementById('selectIdExemplar').value;
+    
+    // 2. Captura os dados do usuário que estão visíveis no modal
+    const nomeAluno = document.getElementById('info-nome').innerText;
+    const emailAluno = document.getElementById('info-email').innerText;
+    const cpfAluno = document.getElementById('inputUsuarioBusca').value;
+
+    // Validação de segurança
+    if (!carimboSelecionado || carimboSelecionado === "undefined" || !nomeAluno) {
+        alert("Erro: Selecione um exemplar válido e certifique-se de que o aluno foi encontrado.");
+        return;
+    }
+
+    try {
+        const btn = document.getElementById('btnConfirmarEmprestimo');
+        btn.disabled = true;
+        btn.innerText = "Processando...";
+
+        const livroRef = doc(db, "livros", idLivro);
+        const snap = await getDoc(livroRef);
+        const dados = snap.data();
+
+        // 3. Monta o objeto do aluguel com os nomes de campos corretos
+        const novoAluguel = {
+            carimbo: carimboSelecionado,
+            usuarioNome: nomeAluno,
+            usuarioEmail: emailAluno,
+            usuarioCpf: cpfAluno,
+            dataEmprestimo: new Date().toISOString()
+        };
+
+        // 4. Atualiza as listas no banco de dados
+        const novosDisponiveis = (dados.exemplaresDisponiveis || []).filter(c => c !== carimboSelecionado);
+        const novosAlugueis = [...(dados.alugueisAtivos || []), novoAluguel];
+
+        await updateDoc(livroRef, {
+            quantidadeDisponivel: novosDisponiveis.length,
+            quantidadeEmprestada: (Number(dados.quantidadeEmprestada) || 0) + 1,
+            exemplaresDisponiveis: novosDisponiveis,
+            alugueisAtivos: novosAlugueis
+        });
+
+        alert("Aluguel registrado com sucesso!");
+        window.fecharModalEmprestimo(); // Fecha o modal
+        carregarDadosDoFirebase();     // Atualiza a tabela ao fundo
+
     } catch (error) {
-        console.error("Erro ao buscar CPF:", error);
-        alert("Erro na conexão com o banco de dados.");
+        console.error("Erro ao alugar:", error);
+        alert("Erro ao salvar no banco de dados.");
+        document.getElementById('btnConfirmarEmprestimo').disabled = false;
+        document.getElementById('btnConfirmarEmprestimo').innerText = "Confirmar Aluguel";
     }
 }
+
+// Vincular ao formulário
+document.getElementById('formEmprestimo')?.addEventListener('submit', confirmarEmprestimo);
+
+
+window.verAlugueis = async (idLivro) => {
+    try {
+        const livroRef = doc(db, "livros", idLivro);
+        const snap = await getDoc(livroRef);
+        const dados = snap.data();
+        const alugueis = dados.alugueisAtivos || [];
+
+        const container = document.getElementById('listaAlugueisCorpo');
+        
+        if (alugueis.length === 0) {
+            container.innerHTML = "<p style='text-align:center; padding: 20px;'>Nenhum exemplar deste livro está alugado no momento.</p>";
+        } else {
+            let html = `
+                <table style="width:100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f1f5f9; text-align: left;">
+                            <th style="padding: 10px; border-bottom: 2px solid #ddd;">Carimbo</th>
+                            <th style="padding: 10px; border-bottom: 2px solid #ddd;">Aluno</th>
+                            <th style="padding: 10px; border-bottom: 2px solid #ddd;">Data Empréstimo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            alugueis.forEach(al => {
+                const dataFormatada = new Date(al.dataEmprestimo).toLocaleDateString('pt-BR');
+                html += `
+                    <tr>
+                        <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>${al.carimbo}</strong></td>
+                        <td style="padding: 10px; border-bottom: 1px solid #eee;">${al.usuarioNome}</td>
+                        <td style="padding: 10px; border-bottom: 1px solid #eee;">${dataFormatada}</td>
+                    </tr>
+                `;
+            });
+
+            html += "</tbody></table>";
+            container.innerHTML = html;
+        }
+
+        document.getElementById('modalListaAlugueis').style.display = 'flex';
+
+    } catch (error) {
+        console.error("Erro ao carregar aluguéis:", error);
+        alert("Não foi possível carregar a lista de aluguéis.");
+    }
+};
+
+
+//---- Resetar modal aluguel ----
+function resetarModalAluguel() {
+    const form = document.getElementById('formEmprestimo');
+    if (form) form.reset(); // Limpa todos os inputs do form de uma vez
+    
+    document.getElementById('info-nome').innerText = "";
+    document.getElementById('info-email').innerText = "";
+    document.getElementById('detalhesUsuario').style.display = 'none';
+}
+
+// Chame essa função dentro da fecharModalEmprestimo()
+window.fecharModalEmprestimo = () => {
+    document.getElementById('modalEmprestimo').style.display = 'none';
+    resetarModalAluguel();
+};
+
+/**
+ * --- FUNÇÃO DE EXCLUSÃO (RESTAURADA) ---
+ */
+window.excluirLivro = async (id) => {
+    if (confirm("Tem certeza que deseja excluir este livro e todos os seus registros permanentemente?")) {
+        try {
+            await deleteDoc(doc(db, "livros", id));
+            alert("Livro excluído com sucesso!");
+            carregarDadosDoFirebase(); // Atualiza a tabela imediatamente
+        } catch (error) {
+            console.error("Erro ao excluir:", error);
+            alert("Erro ao excluir do banco de dados.");
+        }
+    }
+};
+
