@@ -307,11 +307,32 @@ window.confirmarDevolucaoEspecifica = async (idLivro, carimbo) => {
         const snap = await getDoc(ref);
         const dados = snap.data();
 
-        // CORREÇÃO: Filtra usando 'carimbo', que é o nome no seu Firebase
+        // 1. ATUALIZAR STATUS NA COLEÇÃO GLOBAL "alugueis" (Para o Dashboard contar como Lido)
+        try {
+            // Buscamos o aluguel ativo deste exemplar específico
+            const q = query(
+                collection(db, "alugueis"),
+                where("carimbo", "==", carimbo),
+                where("status", "==", "ativo")
+            );
+            const snapAlugueis = await getDocs(q);
+
+            if (!snapAlugueis.empty) {
+                // Atualizamos o status para "devolvido"
+                const aluguelDocRef = doc(db, "alugueis", snapAlugueis.docs[0].id);
+                await updateDoc(aluguelDocRef, {
+                    status: "devolvido", // Agora o contador de "Livros Lidos" vai somar +1
+                    dataDevolucao: new Date().toISOString()
+                });
+            }
+        } catch (err) {
+            console.error("Erro ao atualizar status global de lidos:", err);
+        }
+
+        // 2. LÓGICA DE ATUALIZAÇÃO DO LIVRO (Sua lógica existente)
         const novosAlugueis = (dados.alugueisAtivos || []).filter(a => a.carimbo !== carimbo);
         
         let listaDisp = [...(dados.exemplaresDisponiveis || [])];
-        // Adiciona de volta à lista de disponíveis se não estiver lá
         if (!listaDisp.includes(carimbo)) {
             listaDisp.push(carimbo);
         }
@@ -319,18 +340,18 @@ window.confirmarDevolucaoEspecifica = async (idLivro, carimbo) => {
         await updateDoc(ref, {
             alugueisAtivos: novosAlugueis,
             exemplaresDisponiveis: listaDisp,
-            quantidadeDisponivel: listaDisp.length, // Atualiza a contagem real
+            quantidadeDisponivel: listaDisp.length,
             quantidadeEmprestada: novosAlugueis.length
         });
 
-        alert("Devolução concluída!");
+        alert("Devolução concluída! O livro agora conta como 'Lido'.");
         
-        // Fecha o modal de lista se ele estiver aberto
+        // Fecha o modal e recarrega a tela
         const modalLista = document.getElementById('modalListaAlugueis');
         if (modalLista) modalLista.style.display = 'none';
 
-        // ATUALIZAÇÃO CRÍTICA: Recarrega os dados para refletir na tela
         await carregarDadosDoFirebase();
+
     } catch (e) { 
         console.error("Erro ao devolver:", e);
         alert("Erro técnico ao processar devolução.");
@@ -483,21 +504,18 @@ async function buscarUsuarioPorCPF(cpf) {
     } catch (e) { console.error(e); }
 }
 
-// ---- CONFIRMAR EMPRESTIMO ----
+// ---- CONFIRMAR EMPRESTIMO ATUALIZADO ----
 
 async function confirmarEmprestimo(e) {
     if(e) e.preventDefault();
 
-    // 1. Captura os IDs dos elementos
     const idLivro = document.getElementById('idLivroModal').value;
     const carimboSelecionado = document.getElementById('selectIdExemplar').value;
     
-    // 2. Captura os dados do usuário que estão visíveis no modal
     const nomeAluno = document.getElementById('info-nome').innerText;
     const emailAluno = document.getElementById('info-email').innerText;
     const cpfAluno = document.getElementById('inputUsuarioBusca').value;
 
-    // Validação de segurança
     if (!carimboSelecionado || carimboSelecionado === "undefined" || !nomeAluno) {
         alert("Erro: Selecione um exemplar válido e certifique-se de que o aluno foi encontrado.");
         return;
@@ -508,40 +526,59 @@ async function confirmarEmprestimo(e) {
         btn.disabled = true;
         btn.innerText = "Processando...";
 
+        // --- NOVIDADE: Buscar o UID do usuário pelo CPF para o Dashboard ---
+        const qUsuario = query(collection(db, "usuarios"), where("cpf", "==", cpfAluno));
+        const snapUsuario = await getDocs(qUsuario);
+        let usuarioIdReal = null;
+        
+        if (!snapUsuario.empty) {
+            usuarioIdReal = snapUsuario.docs[0].id;
+        }
+
         const livroRef = doc(db, "livros", idLivro);
         const snap = await getDoc(livroRef);
         const dados = snap.data();
 
-        // 3. Monta o objeto do aluguel com os nomes de campos corretos
+        // Objeto do aluguel atualizado com usuarioId
         const novoAluguel = {
             carimbo: carimboSelecionado,
             usuarioNome: nomeAluno,
             usuarioEmail: emailAluno,
             usuarioCpf: cpfAluno,
-            dataEmprestimo: new Date().toISOString()
+            usuarioId: usuarioIdReal, // CAMPO ESSENCIAL PARA O DASHBOARD
+            livroId: idLivro,
+            tituloLivro: dados.titulo,
+            dataEmprestimo: new Date().toISOString(),
+            status: "ativo" // CAMPO ESSENCIAL PARA O DASHBOARD
         };
 
-        // 4. Atualiza as listas no banco de dados
+        // 1. SALVAR NA COLEÇÃO GLOBAL "alugueis" (Isso faz o Dashboard funcionar)
+        await addDoc(collection(db, "alugueis"), novoAluguel);
+
+        // 2. ATUALIZAR O DOCUMENTO DO LIVRO (Mantém sua lógica atual)
         const novosDisponiveis = (dados.exemplaresDisponiveis || []).filter(c => c !== carimboSelecionado);
-        const novosAlugueis = [...(dados.alugueisAtivos || []), novoAluguel];
+        const novosAlugueisAtivos = [...(dados.alugueisAtivos || []), novoAluguel];
 
         await updateDoc(livroRef, {
             quantidadeDisponivel: novosDisponiveis.length,
             quantidadeEmprestada: (Number(dados.quantidadeEmprestada) || 0) + 1,
             exemplaresDisponiveis: novosDisponiveis,
-            alugueisAtivos: novosAlugueis
+            alugueisAtivos: novosAlugueisAtivos
         });
 
         alert("Aluguel registrado com sucesso!");
-        window.fecharModalEmprestimo(); // Fecha o modal
-        carregarDadosDoFirebase();     // Atualiza a tabela ao fundo
-        atualizarOpcoesFiltroGenero();    // Depois reconstrói o select de gêneros
+        
+        // Limpeza e atualização da tela
+        if (window.fecharModalEmprestimo) window.fecharModalEmprestimo();
+        if (typeof carregarDadosDoFirebase === "function") carregarDadosDoFirebase();
+        if (typeof atualizarOpcoesFiltroGenero === "function") atualizarOpcoesFiltroGenero();
 
     } catch (error) {
         console.error("Erro ao alugar:", error);
         alert("Erro ao salvar no banco de dados.");
-        document.getElementById('btnConfirmarEmprestimo').disabled = false;
-        document.getElementById('btnConfirmarEmprestimo').innerText = "Confirmar Aluguel";
+        const btn = document.getElementById('btnConfirmarEmprestimo');
+        btn.disabled = false;
+        btn.innerText = "Confirmar Aluguel";
     }
 }
 

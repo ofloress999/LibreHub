@@ -1,25 +1,28 @@
 import { auth, db } from './firebase.js'; 
 import { 
-    doc, getDoc, collection, getDocs, query, where, limit, orderBy 
+    doc, getDoc, collection, getDocs, query, where, limit 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+// --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Tema salvo
-    if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
-
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // Carregar Foto de Perfil
+            // 1. Carrega foto de perfil
             const userDoc = await getDoc(doc(db, "usuarios", user.uid));
             if (userDoc.exists()) {
                 const dados = userDoc.data();
-                if (dados.fotoUrl) document.getElementById('profileBtn').src = dados.fotoUrl;
+                const profileBtn = document.getElementById('profileBtn');
+                if (dados.fotoUrl && profileBtn) {
+                    profileBtn.src = dados.fotoUrl;
+                }
             }
 
             // --- CHAMADA DAS FUNÇÕES DE DADOS REAIS ---
+            // É fundamental passar o user.uid para as funções funcionarem
             carregarDadosContadores(user.uid);
             carregarLivrosRecentes();
+
         } else {
             window.location.href = "../index.html";
         }
@@ -31,6 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- FUNÇÃO QUE BUSCA OS NÚMEROS REAIS ---
 async function carregarDadosContadores(userId) {
     try {
+        console.log("Buscando dados para:", userId);
+
         // 1. LIVROS ALUGADOS (Status: 'ativo')
         const qAlugados = query(
             collection(db, "alugueis"), 
@@ -38,7 +43,8 @@ async function carregarDadosContadores(userId) {
             where("status", "==", "ativo")
         );
         const snapAlugados = await getDocs(qAlugados);
-        document.getElementById('dash-meus-alugados').innerText = snapAlugados.size;
+        const elAlugados = document.getElementById('dash-meus-alugados');
+        if (elAlugados) elAlugados.innerText = snapAlugados.size;
 
         // 2. LIVROS LIDOS (Status: 'devolvido')
         const qLidos = query(
@@ -47,28 +53,29 @@ async function carregarDadosContadores(userId) {
             where("status", "==", "devolvido")
         );
         const snapLidos = await getDocs(qLidos);
-        document.getElementById('dash-livros-lidos').innerText = snapLidos.size;
+        const elLidos = document.getElementById('dash-livros-lidos');
+        if (elLidos) elLidos.innerText = snapLidos.size;
 
-        // 3. MINHAS REUNIÕES (Onde o usuário é participante)
+        // 3. REUNIÕES
         const qReunioes = query(
             collection(db, "reunioes"), 
             where("participantes", "array-contains", userId)
         );
         const snapReunioes = await getDocs(qReunioes);
-        document.getElementById('dash-minhas-reunioes').innerText = snapReunioes.size;
+        const elReunioes = document.getElementById('dash-minhas-reunioes');
+        if (elReunioes) elReunioes.innerText = snapReunioes.size;
 
     } catch (error) {
         console.error("Erro ao carregar contadores:", error);
     }
 }
 
-// --- FUNÇÃO PARA OS CARDS PEQUENOS (RECENTES) ---
+// --- FUNÇÃO PARA OS LIVROS RECENTES ---
 async function carregarLivrosRecentes() {
     const container = document.getElementById('recent-books-container');
     if (!container) return;
 
     try {
-        // Pega os 4 últimos livros
         const q = query(collection(db, "livros"), limit(4));
         const snap = await getDocs(q);
         
@@ -90,7 +97,14 @@ async function carregarLivrosRecentes() {
 }
 
 function initGlobalFeatures() {
-    // Lógica de Menu, Dark Mode e Dropdown (seus códigos padrão)
+    // Menu Toggle (Sidebar)
+    const menuToggle = document.getElementById('menu-toggle');
+    const sidebar = document.getElementById('sidebar');
+    if (menuToggle && sidebar) {
+        menuToggle.onclick = () => sidebar.classList.toggle('active');
+    }
+
+    // Tema
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) {
         themeToggle.onclick = () => {
@@ -98,4 +112,16 @@ function initGlobalFeatures() {
             localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
         };
     }
+    if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
+
+    // Dropdown Perfil
+    const profileBtn = document.getElementById('profileBtn');
+    const dropdown = document.getElementById('dropdown');
+    if (profileBtn && dropdown) {
+        profileBtn.onclick = (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+        };
+    }
+    document.addEventListener('click', () => dropdown?.classList.remove('show'));
 }

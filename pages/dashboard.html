@@ -47,7 +47,7 @@
             <section class="cards">
                 <div class="card">
                     <h3>Livros Alugados</h3>
-                    <p id="dash-meus-alugados">0</p>
+                    <p id="dash-meus-alugados">0</p> 
                 </div>
                 <div class="card">
                     <h3>Minhas Reuniões</h3>
@@ -71,17 +71,6 @@
     </div>
 
     <script type="module" src="../js/dashboard.js"></script>
-
-    <script type="module">
-        import { db } from '../js/firebase.js';
-        import { collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-        // Carregar dados assim que a página abrir
-        window.onload = async () => {
-        carregarResumoLivros();
-        carregarUltimosLivros();
-        };    
-    </script>
     
 </body>
 </html>
